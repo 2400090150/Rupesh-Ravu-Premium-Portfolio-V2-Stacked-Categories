@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ravu-fx.vercel.app/sitemap.xml
