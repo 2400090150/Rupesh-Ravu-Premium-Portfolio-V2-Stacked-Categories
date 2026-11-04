@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About | Rupesh Ravu</title>
+<meta name="description" content="About Rupesh Ravu — a visual designer focused on branding, campaign visuals, typography, poster design, and digital storytelling.">
+<link rel="stylesheet" href="style.css">
+<style>
+  :root {
+    --bg: #090909;
+    --panel: #111111;
+    --panel-soft: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.12);
+    --text: #f4efe9;
+    --muted: #b5afa7;
+    --accent: #e83b25;
+    --accent-soft: rgba(232,59,37,0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: .08;
+    background-image: radial-gradient(rgba(255,255,255,.22) 0.6px, transparent 0.8px);
+    background-size: 8px 8px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 18px 0;
+    background: rgba(9,9,9,0.7);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    font: 700 18px/1 'DM Mono', monospace;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  .logo img {
+    display: block;
+    width: 160px;
+    height: 36px;
+    object-fit: contain;
+  }
+  .logo span { color: var(--accent); }
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font: 11px 'DM Mono', monospace;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  nav a:hover, .back-link:hover { color: var(--accent); }
+  .page-shell {
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 28px 0 90px;
+  }
+  .kicker {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font: 11px 'DM Mono', monospace;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(28px, 6vw, 88px);
+    align-items: center;
+    min-height: 0;
+    padding: 54px 0 46px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: visible;
+    isolation: isolate;
+  }
+  .hero::before {
+    content: "R";
+    position: absolute;
+    z-index: -1;
+    top: -36px;
+    right: 2vw;
+    color: #111;
+    font-size: clamp(300px, 42vw, 620px);
+    font-weight: 900;
+    line-height: .7;
+    letter-spacing: -.1em;
+    pointer-events: none;
+  }
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(38px, 6vw, 92px);
+    line-height: .86;
+    letter-spacing: -.08em;
+    text-transform: uppercase;
+  }
+  .hero h1 .name {
+    display: inline-block;
+    color: var(--accent);
+    font-size: clamp(52px, 7.5vw, 112px);
+    line-height: .85;
+  }
+  .hero h1 span:not(.name) {
+    display: block;
+    color: var(--text);
+    font-size: clamp(40px, 6.2vw, 92px);
+    line-height: .88;
+    white-space: nowrap;
+  }
+  .hero-copy {
+    max-width: 64ch;
+    color: var(--muted);
+    font-size: clamp(16px, 2vw, 22px);
+    line-height: 1.7;
+  }
+  .story-copy {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.9;
+  }
+  .story-copy strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .education-name {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.15em;
+  }
+  .story-copy .highlight-name {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .info-block {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+  .info-block h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+    letter-spacing: -.03em;
+    text-transform: uppercase;
+  }
+  .info-block p, .info-block li {
+    color: var(--muted);
+    line-height: 1.8;
+    font-size: 16px;
+  }
+  .hero-card {
+    position: relative;
+    padding: 30px 28px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    background: linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.012));
+  }
+  .hero-card strong {
+    display: block;
+    margin-bottom: 12px;
+    font: 11px 'DM Mono', monospace;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .hero-card p {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.75;
+  }
+  .story-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 22px;
+    margin-top: 28px;
+  }
+  .story-intro .panel:first-child { background: linear-gradient(135deg, rgba(255,255,255,.045), rgba(255,255,255,.012)); }
+  .journey-grid { grid-template-columns: 1fr; }
+  .panel {
+    padding: clamp(24px, 4vw, 42px);
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.015);
+  }
+  .panel h2 {
+    margin: 0 0 18px;
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: .96;
+    letter-spacing: -.05em;
+    text-transform: uppercase;
+  }
+  .panel p, .panel li {
+    color: var(--muted);
+    line-height: 1.8;
+    font-size: 16px;
+  }
+  .panel ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .journey-copy p {
+    position: relative;
+    margin: 0 0 22px;
+    padding: 0 0 0 22px;
+    border-left: 1px solid rgba(232,59,37,.55);
+  }
+  .journey-copy p::before {
+    content: "";
+    position: absolute;
+    top: .55em;
+    left: -4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .expertise-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 28px;
+  }
+  .expertise-item {
+    min-height: 190px;
+    padding: 22px 18px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  }
+  .expertise-item span {
+    display: inline-block;
+    margin-bottom: 26px;
+    color: var(--accent);
+    font: 11px 'DM Mono', monospace;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  .expertise-item h3 {
+    margin: 0 0 12px;
+    font-size: 24px;
+    letter-spacing: -.04em;
+    text-transform: uppercase;
+  }
+  .expertise-item p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .quote {
+    margin-top: 28px;
+    padding: clamp(26px, 5vw, 54px);
+    border: 1px solid rgba(232,59,37,0.3);
+    background: var(--accent-soft);
+  }
+  .quote p {
+    margin: 0;
+    font-size: clamp(22px, 4vw, 42px);
+    line-height: 1.2;
+    letter-spacing: -.05em;
+    text-transform: uppercase;
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .cta p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 52ch;
+  }
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0 22px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: white;
+    font: 11px 'DM Mono', monospace;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    transition: transform .2s ease, filter .2s ease;
+  }
+  .button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 16px;
+    width: min(1180px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 18px 0 32px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font: 10px 'DM Mono', monospace;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  @media (max-width: 860px) {
+    .hero, .story-grid, .journey-grid { grid-template-columns: 1fr; }
+    .expertise-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero { gap: 24px; padding: 44px 0 36px; }
+    header { flex-wrap: wrap; gap: 12px; }
+    nav { gap: 12px; flex-wrap: wrap; }
+  }
+  @media (max-width: 540px) {
+    .page-shell { width: min(100% - 28px, 1180px); padding-top: 18px; }
+    .hero h1 .name { font-size: clamp(42px, 12vw, 62px); }
+    .hero h1 { font-size: clamp(30px, 9vw, 46px); }
+    .hero h1 span:not(.name) { font-size: clamp(30px, 8.5vw, 44px); white-space: normal; }
+    .hero-card, .panel { padding: 22px 18px; }
+    .expertise-grid { grid-template-columns: 1fr; }
+    .expertise-item { min-height: auto; }
+    nav { gap: 9px; font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<header>
+  <a class="logo" href="/" aria-label="RAVU.FX home"><img src="/assets/ravu-fx-logo.png?v=4" alt="RAVU.FX"></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/certificates">Certificates</a>
+    <a href="/about">About</a>
+    <a href="/contact">Let's Connect ↗</a>
+  </nav>
+</header>
+
+<main class="page-shell">
+  <section class="hero">
+    <div>
+      <p class="kicker">About / Design Philosophy</p>
+      <h1><span class="name">Rupesh Ravu</span><br><span>designs with impact.</span></h1>
+    </div>
+    <div class="hero-card">
+      <strong>Approach</strong>
+      <p>I design visuals that feel deliberate, high-contrast and memorable — from logos and posters to brand campaigns, digital assets and event communication. My work balances clarity with emotion so each piece lands quickly and stays in the mind.</p>
+    </div>
+  </section>
+
+  <section class="story-grid story-intro">
+    <article class="panel">
+      <h2>About Me</h2>
+      <div class="story-copy">
+        <p><span class="highlight-name">Hi, I'm Rupesh Ravu</span> — a self-taught graphic designer, creative thinker, and Computer Science and Information Technology student at KL University.</p>
+        <p>My journey into design started long before I had professional experience or access to advanced design tools. I began experimenting with designs during my lockdown days, exploring creativity and learning everything on my own.</p>
+        <p>Canva was my first step into the world of design. Later, when I entered B.Tech, I started learning Adobe Photoshop, Illustrator, and InDesign. One of my proudest moments was learning Photoshop in just one week during my second year, first semester. I believe curiosity, consistency, and practice can take you further than you imagine.</p>
+      </div>
+    </article>
+    <article class="panel">
+      <h2>What I do</h2>
+      <ul>
+        <li>Brand identity and logo design</li>
+        <li>Poster and event campaign design</li>
+        <li>Typography-led compositions and visual storytelling</li>
+        <li>Product packaging and presentation visuals</li>
+        <li>Social media design and digital marketing creatives</li>
+      </ul>
+      <div class="info-block">
+        <h3>What defines me</h3>
+        <p>I believe good design is not just about making something look attractive. It's about communicating an idea, creating an experience, and making people feel something.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="story-grid journey-grid">
+    <article class="panel">
+      <h2>The Journey Behind My Designs</h2>
+      <div class="story-copy journey-copy">
+        <p><strong>My journey at KL University</strong> took an unexpected turn just two days before SAMYAK Fest during my first-year, first-semester days. I joined the SAMYAK team as a Designing Coordinator.</p>
+        <p>During my second semester, I designed seven website designs. Those designs caught the attention of the team, and I got an opportunity to work with SURABHI, our university's fest held in March. That opportunity opened another door.</p>
+        <p>I went on to create the main designs for SAMYAK 2025. My work and contribution earned me a higher position in the SAMYAK designing team during my second year. That was the point where my journey as a designer truly started growing.</p>
+        <p>From being a coordinator to taking responsibility for major creative designs, every opportunity taught me something new. Each fest, each project, and every challenge helped shape the designer I am today.</p>
+        <p>I didn't start with everything figured out. I learned, experimented, made mistakes, and improved with every design. And I'm still learning, still creating, and still exploring what's possible.</p>
+      </div>
+    </article>
+    <article class="panel">
+      <h2>Education</h2>
+      <div class="story-copy">
+        <p><strong>School:</strong> <span class="education-name">Viswasanthi English Medium School</span></p>
+        <p><strong>Intermediate (11th &amp; 12th):</strong> <span class="education-name">Sri Chaitanya Institution</span></p>
+        <p><strong>Undergraduate:</strong> <span class="education-name">KL University</span><br>B.Tech – Computer Science and Information Technology</p>
+      </div>
+      <div class="info-block">
+        <h3>My promise</h3>
+        <p><strong>I started with curiosity. I continued with passion. And I'm building my journey one design at a time.</strong></p>
+      </div>
+    </article>
+  </section>
+
+  <section class="expertise-grid">
+    <article class="expertise-item">
+      <span>01</span>
+      <h3>Branding</h3>
+      <p>Identity systems, logo direction, campaign storytelling, and brand language built for consistency and recognition.</p>
+    </article>
+    <article class="expertise-item">
+      <span>02</span>
+      <h3>Campaigns</h3>
+      <p>Posters, event graphics, promo rollouts and brand moments designed to create attention and energy.</p>
+    </article>
+    <article class="expertise-item">
+      <span>03</span>
+      <h3>Typography</h3>
+      <p>Type as image, contrast as rhythm, and layout as narrative — creating expressive, high-impact visual systems.</p>
+    </article>
+    <article class="expertise-item">
+      <span>04</span>
+      <h3>Digital</h3>
+      <p>Web visuals, social content and digital creatives tailored for modern audiences and agile brands.</p>
+    </article>
+  </section>
+
+  <section class="quote">
+    <p>“Design should feel loud, clear and human — not just attractive.”</p>
+  </section>
+
+  <section class="cta">
+    <p>I work with clarity, contrast, type, rhythm and experimentation — building visuals that are both persuasive and memorable. If you need identity work, event creative, posters, or visual direction, I’d love to collaborate.</p>
+    <a class="button" href="/contact">Let's connect</a>
+  </section>
+</main>
+
+<footer>
+  <span>© 2026 RUPESH RAVU</span>
+  <span>Graphic Design / Visual Design</span>
+  <span>India</span>
+</footer>
+</body>
+</html>

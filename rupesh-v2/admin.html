@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Design Management — Ravu.FX</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body class="admin-page">
+<header><a class="logo" href="/" aria-label="RAVU.FX home"><img src="/assets/ravu-fx-logo.png?v=4" alt="RAVU.FX"></a><nav><a href="/">View portfolio ↗</a></nav></header>
+<main class="admin-main">
+  <div class="admin-heading"><p class="kicker">RAVU.FX / PRIVATE DASHBOARD</p><h1>DESIGN<br><em>MANAGEMENT</em></h1></div>
+  <p id="adminStatus" class="admin-status" role="status" hidden></p>
+  <section id="authPanel" class="admin-panel auth-panel">
+    <form id="setupForm" hidden>
+      <p class="kicker">FIRST-TIME SETUP</p><h2>Create your admin password</h2>
+      <p>Copy the one-time setup token printed in the server terminal, then choose a password with at least 12 characters.</p>
+      <label>Admin email<input name="email" type="email" value="ravu.fx@gmail.com" autocomplete="email" required></label>
+      <label>One-time setup token<input name="token" autocomplete="one-time-code" required></label>
+      <label>Admin password<input name="password" type="password" autocomplete="new-password" minlength="12" required></label>
+      <button class="button" type="submit">Create admin account</button>
+    </form>
+    <form id="loginForm" hidden>
+      <p class="kicker">ADMIN SIGN IN</p><h2>Welcome back.</h2>
+      <label>Admin email<input name="email" type="email" autocomplete="username" required></label>
+      <label>Admin password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="button" type="submit">Sign in</button>
+    </form>
+  </section>
+  <div id="dashboard" hidden>
+    <div class="admin-toolbar"><p>Designs, featured work and homepage details are stored in the portfolio database.</p><button id="logoutButton" class="button button-secondary" type="button">Sign out</button></div>
+    <section class="admin-panel">
+      <div class="panel-heading"><div><p class="kicker">01 / DESIGN LIBRARY</p><h2>Manage designs</h2></div></div>
+      <form id="designForm" class="admin-form">
+        <input type="hidden" name="editingId">
+        <label>Category<select name="category" id="designCategory" required></select></label>
+        <label>Design name<input name="title" maxlength="120" required></label>
+        <label class="wide-field">Description<textarea name="description" rows="3" maxlength="2000" required></textarea></label>
+        <label class="wide-field">Design image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label>
+        <div id="logoBackgroundControls" class="logo-background-controls wide-field" hidden>
+          <label>Logo display background
+            <select id="displayBackgroundColor">
+              <option value="#ffffff">White</option>
+              <option value="#000000">Black</option>
+              <option value="#d9d9d9">Light grey</option>
+              <option value="#333333">Dark grey</option>
+              <option value="custom">Custom color</option>
+            </select>
+          </label>
+          <label>Choose background color<input id="displayBackgroundPicker" type="color" value="#ffffff"></label>
+          <label>Custom HEX color<input id="displayBackgroundHex" type="text" value="#ffffff" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Custom logo background HEX color"></label>
+          <div id="logoPreview" class="logo-live-preview"><span>Live logo preview</span><img id="logoPreviewImage" alt="Logo preview" hidden></div>
+          <p class="form-help wide-field">Backgrounds are display-only. Your original uploaded logo file is stored unchanged.</p>
+        </div>
+        <div class="form-actions"><button class="button" type="submit">Upload design</button><button id="cancelEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
+      </form>
+      <div class="library-toolbar">
+        <label>Browse category<select id="libraryCategory"></select></label>
+        <span id="featuredCount" class="featured-count">Choose 1–4 homepage designs</span>
+      </div>
+      <div id="designList" class="design-list"></div>
+    </section>
+    <section class="admin-panel" id="certificateManager">
+      <div class="panel-heading"><div><p class="kicker">02 / CERTIFICATE ARCHIVE</p><h2>Manage certificates</h2></div></div>
+      <p class="form-help">Upload a PDF, PNG, or JPG, or add a secure HTTPS link to an online certificate.</p>
+      <form id="certificateForm" class="admin-form">
+        <input type="hidden" name="editingId">
+        <label>Certificate name<input name="title" maxlength="120" required></label>
+        <label class="wide-field">Description<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+        <label class="wide-field">Certificate file (optional)<input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"></label>
+        <label class="wide-field">Certificate URL (optional)<input name="certificateUrl" type="url" maxlength="2048" placeholder="https://..."></label>
+        <p class="form-help wide-field">Add either a certificate file or a link, not both. Leave both empty when editing to keep the current certificate.</p>
+        <div class="form-actions"><button class="button" type="submit">Upload certificate</button><button id="cancelCertificateEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
+      </form>
+      <div id="certificateList" class="asset-list"></div>
+    </section>
+    <section class="admin-panel" id="toolManager">
+      <div class="panel-heading"><div><p class="kicker">03 / SKILLS &amp; SOFTWARE</p><h2>Manage tool logos</h2></div></div>
+      <p class="form-help">Upload actual software or technology logos as PNG, JPG, WebP, or safe self-contained SVG files.</p>
+      <form id="toolForm" class="admin-form">
+        <input type="hidden" name="editingId">
+        <label>Tool name (optional)<input name="name" maxlength="120"></label>
+        <label>Logo category (optional)<input name="category" maxlength="80" placeholder="Design, 3D, Development"></label>
+        <label class="wide-field">Tool logo<input name="image" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" required></label>
+        <label class="visibility-control wide-field"><input name="visible" type="checkbox" checked> Show this logo on the homepage</label>
+        <div class="form-actions"><button class="button" type="submit">Upload tool logo</button><button id="cancelToolEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
+      </form>
+      <div id="toolList" class="asset-list"></div>
+    </section>
+    <section class="admin-panel">
+      <div class="panel-heading"><div><p class="kicker">04 / WEBSITE CONTENT</p><h2>Homepage &amp; contact</h2></div></div>
+      <form id="contentForm" class="admin-form content-form">
+        <label>Homepage headline<textarea name="heroTitle" rows="3" maxlength="120" required></textarea></label>
+        <label>Homepage introduction<textarea name="heroLead" rows="3" maxlength="500" required></textarea></label>
+        <label>About name<input name="aboutName" maxlength="120" required></label>
+        <label>About summary<textarea name="aboutSummary" rows="3" maxlength="500" required></textarea></label>
+        <label class="wide-field">About section<textarea name="aboutText" rows="5" maxlength="2000" required></textarea></label>
+        <label>Phone<input name="contactPhone" maxlength="80" required></label>
+        <label>Email<input name="contactEmail" type="email" maxlength="200" required></label>
+        <label>Instagram handle<input name="contactInstagram" maxlength="100" required></label>
+        <div id="sectionSettings" class="section-settings"></div>
+        <div class="custom-section-manager wide-field">
+          <div class="custom-section-heading">
+            <div><p class="kicker">ADDITIONAL CONTENT</p><h3>Custom homepage sections</h3></div>
+            <button id="addCustomSection" class="button button-secondary" type="button">Add section</button>
+          </div>
+          <p class="form-help">Add content sections without changing the four fixed design categories. Save website content to publish your changes.</p>
+          <div id="customSectionSettings" class="section-settings custom-section-settings"></div>
+        </div>
+        <div class="form-actions wide-field"><button class="button" type="submit">Save website content</button></div>
+      </form>
+    </section>
+  </div>
+</main>
+<footer><span>© 2026 RUPESH RAVU</span><a href="/">BACK TO PORTFOLIO ↗</a></footer>
+<script src="/admin.js" defer></script>
+</body>
+</html>
