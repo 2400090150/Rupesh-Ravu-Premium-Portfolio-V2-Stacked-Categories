@@ -8,7 +8,9 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ravu-portfolio-test-'));
 process.env.PORTFOLIO_DATA_DIR = path.join(tempDir, 'data');
 process.env.PORTFOLIO_UPLOAD_DIR = path.join(tempDir, 'uploads');
 
-const { CATEGORY_DEFINITIONS, createApp, createVercelFallbackApp, getDatabase } = require('./server');
+const {
+  CATEGORY_DEFINITIONS, createApp, createRetryingFetch, createVercelFallbackApp, getDatabase
+} = require('./server');
 const bootstrapToken = 'test-only-initial-setup-token';
 let server;
 let baseUrl;
@@ -61,7 +63,9 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const restartedPortfolio = await requestJson('/api/portfolio');
     assert.equal(restartedPortfolio.response.status, 200);
     for (const category of restartedPortfolio.data.categories) {
-      assert.equal(category.designs.length, 4, `${category.slug} featured work should survive concurrent startup`);
+      assert.deepEqual(category.designs.map(design => design.id),
+        data.categories.find(original => original.slug === category.slug).designs.map(design => design.id),
+        `${category.slug} featured work should survive concurrent startup`);
     }
     const logoArchive = await fetch(`${baseUrl}/logo-designs`);
     assert.equal(logoArchive.status, 200);
@@ -70,11 +74,35 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
   });
 
+  test('retries transient read-only Supabase network failures without retrying writes', async () => {
+    let readAttempts = 0;
+    const retryRead = createRetryingFetch(async () => {
+      readAttempts++;
+      if (readAttempts < 3) throw new TypeError('fetch failed');
+      return new Response('ok');
+    }, async () => {});
+    const response = await retryRead('https://database.example.test/read');
+    assert.equal(response.status, 200);
+    assert.equal(readAttempts, 3);
+
+    let writeAttempts = 0;
+    const retryWrite = createRetryingFetch(async () => {
+      writeAttempts++;
+      throw new TypeError('fetch failed');
+    }, async () => {});
+    await assert.rejects(retryWrite('https://database.example.test/write', { method: 'POST', body: '{}' }), /fetch failed/);
+    assert.equal(writeAttempts, 1);
+  });
+
   test('serves the read-only portfolio when cloud storage initialization fails', async t => {
+    const result = { data: null, error: { message: 'Cloud storage is unavailable.' } };
+    const query = {
+      then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+      eq: () => query,
+      maybeSingle: async () => result
+    };
     const unavailableClient = {
-      from: () => ({
-        upsert: async () => ({ data: null, error: { message: 'Cloud storage is unavailable.' } })
-      })
+      from: () => ({ select: () => query })
     };
     const unavailableApp = createApp({
       client: unavailableClient,

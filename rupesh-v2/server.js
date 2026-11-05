@@ -98,6 +98,22 @@ function fail(result) {
   return result.data;
 }
 
+function createRetryingFetch(fetchImplementation = globalThis.fetch, delay = milliseconds =>
+  new Promise(resolve => setTimeout(resolve, milliseconds))) {
+  return async (input, init) => {
+    const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const retrySafe = method === 'GET' || method === 'HEAD';
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fetchImplementation(input, init);
+      } catch (error) {
+        if (!retrySafe || attempt >= 2) throw error;
+        await delay(100 * (attempt + 1));
+      }
+    }
+  };
+}
+
 const SQLITE_SCHEMA = `
   PRAGMA foreign_keys = ON;
   CREATE TABLE IF NOT EXISTS categories (
@@ -418,11 +434,20 @@ async function updateOne(client, table, id, row, columns = '*') {
 }
 
 async function initialize(client) {
-  fail(await client.from('categories').upsert(CATEGORY_DEFINITIONS.map((category, sort_order) => ({
-    ...category, visible: true, sort_order
-  })), { onConflict: 'slug', ignoreDuplicates: true }));
-  fail(await client.from('site_settings').upsert(Object.entries(DEFAULT_CONTENT).map(([key, value]) => ({ key, value })),
-    { onConflict: 'key', ignoreDuplicates: true }));
+  const existingCategories = new Set((await select(client, 'categories', 'slug')).map(category => category.slug));
+  const missingCategories = CATEGORY_DEFINITIONS.filter(category => !existingCategories.has(category.slug));
+  if (missingCategories.length) {
+    fail(await client.from('categories').upsert(missingCategories.map(category => ({
+      ...category, visible: true, sort_order: CATEGORY_DEFINITIONS.indexOf(category)
+    })), { onConflict: 'slug', ignoreDuplicates: true }));
+  }
+  const existingSettings = new Set((await select(client, 'site_settings', 'key')).map(setting => setting.key));
+  const missingSettings = Object.entries(DEFAULT_CONTENT)
+    .filter(([key]) => !existingSettings.has(key))
+    .map(([key, value]) => ({ key, value }));
+  if (missingSettings.length) {
+    fail(await client.from('site_settings').upsert(missingSettings, { onConflict: 'key', ignoreDuplicates: true }));
+  }
   const existing = await select(client, 'designs', 'id', query => query.limit(1));
   if (existing.length === 0) await seedLegacyDesigns(client);
   for (const category of CATEGORY_DEFINITIONS) await ensureFeaturedDesigns(client, category.slug);
@@ -692,7 +717,8 @@ function verifyConfig(options) {
   if (!client && supabaseUrl && supabaseKey) {
     const { createClient } = require('@supabase/supabase-js');
     client = createClient(supabaseUrl, supabaseKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: createRetryingFetch() }
     });
   }
   if (!database && !client) database = getDatabase();
@@ -1335,6 +1361,7 @@ module.exports = {
   createApp,
   createVercelFallbackApp,
   cleanUnusedUpload,
+  createRetryingFetch,
   getDatabase,
   initialize,
   seedLegacyDesigns,
