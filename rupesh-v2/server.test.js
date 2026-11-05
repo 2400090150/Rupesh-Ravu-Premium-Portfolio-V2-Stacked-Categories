@@ -8,7 +8,7 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ravu-portfolio-test-'));
 process.env.PORTFOLIO_DATA_DIR = path.join(tempDir, 'data');
 process.env.PORTFOLIO_UPLOAD_DIR = path.join(tempDir, 'uploads');
 
-const { CATEGORY_DEFINITIONS, createApp, getDatabase } = require('./server');
+const { CATEGORY_DEFINITIONS, createApp, createVercelFallbackApp, getDatabase } = require('./server');
 const bootstrapToken = 'test-only-initial-setup-token';
 let server;
 let baseUrl;
@@ -58,6 +58,80 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.match(await logoArchive.text(), /categoryGallery/);
     assert.equal((await requestJson('/server.js')).response.status, 404);
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
+  });
+
+  test('serves the read-only portfolio when cloud storage initialization fails', async t => {
+    const unavailableClient = {
+      from: () => ({
+        upsert: async () => ({ data: null, error: { message: 'Cloud storage is unavailable.' } })
+      })
+    };
+    const unavailableApp = createApp({
+      client: unavailableClient,
+      sessionSecret: 'test-session-secret-with-at-least-32-bytes',
+      bootstrapToken
+    });
+    const unavailableServer = unavailableApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => unavailableServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      unavailableServer.once('listening', resolve);
+      unavailableServer.once('error', reject);
+    });
+    const baseUrl = `http://127.0.0.1:${unavailableServer.address().port}`;
+
+    const portfolioResponse = await fetch(`${baseUrl}/api/portfolio`);
+    assert.equal(portfolioResponse.status, 200);
+    const portfolio = await portfolioResponse.json();
+    assert.equal(portfolio.storageConfigured, false);
+    assert.equal(portfolio.categories.length, 4);
+
+    const sessionResponse = await fetch(`${baseUrl}/api/admin/session`);
+    assert.equal(sessionResponse.status, 200);
+    const session = await sessionResponse.json();
+    assert.equal(session.storageUnavailable, true);
+
+    const adminResponse = await fetch(`${baseUrl}/api/admin/content`);
+    assert.equal(adminResponse.status, 503);
+    assert.match((await adminResponse.json()).error, /persistent storage could not be reached/);
+  });
+
+  test('serves the read-only portfolio when a cloud-backed API request fails', async t => {
+    const unavailableApp = createApp({
+      database: getDatabase(),
+      storageFallback: createVercelFallbackApp({ storageUnavailable: true })
+    });
+    await unavailableApp.locals.ready;
+    const databaseClient = unavailableApp.locals.databaseClient;
+    const originalFrom = databaseClient.from.bind(databaseClient);
+    databaseClient.from = table => {
+      if (table === 'site_settings' || table === 'admin_credentials') {
+        const result = { data: null, error: { message: 'Cloud storage is unavailable.' } };
+        const query = {
+          then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
+          eq: () => query,
+          maybeSingle: async () => result
+        };
+        return {
+          select: () => query
+        };
+      }
+      return originalFrom(table);
+    };
+    const unavailableServer = unavailableApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => unavailableServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      unavailableServer.once('listening', resolve);
+      unavailableServer.once('error', reject);
+    });
+    const baseUrl = `http://127.0.0.1:${unavailableServer.address().port}`;
+
+    const portfolioResponse = await fetch(`${baseUrl}/api/portfolio`);
+    assert.equal(portfolioResponse.status, 200);
+    assert.equal((await portfolioResponse.json()).storageConfigured, false);
+
+    const adminSessionResponse = await fetch(`${baseUrl}/api/admin/session`);
+    assert.equal(adminSessionResponse.status, 200);
+    assert.equal((await adminSessionResponse.json()).storageUnavailable, true);
   });
 
   await t.test('requires the one-time setup token and protects admin endpoints', async () => {

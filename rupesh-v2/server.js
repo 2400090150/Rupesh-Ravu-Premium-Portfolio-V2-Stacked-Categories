@@ -714,10 +714,25 @@ function createApp(options = {}) {
   const app = express();
   const loginAttempts = new Map();
   const setupTokenHash = config.setupToken ? crypto.createHash('sha256').update(config.setupToken).digest() : null;
+  const storageFallback = options.storageFallback ||
+    (config.client && !config.database ? createVercelFallbackApp({ storageUnavailable: true }) : null);
   app.locals.database = config.database;
   app.locals.databaseClient = client;
-  app.locals.ready = initialize(client);
-  app.use((req, res, next) => app.locals.ready.then(() => next(), next));
+  app.locals.storageError = null;
+  app.locals.ready = initialize(client).catch(error => {
+    app.locals.storageError = error;
+    if (storageFallback) console.error('Portfolio storage initialization failed:', error);
+  });
+  app.use((req, res, next) => app.locals.ready.then(() => {
+    if (app.locals.storageError) {
+      if (storageFallback && req.path.startsWith('/api/') &&
+          (req.method === 'GET' || req.path.startsWith('/api/admin/'))) {
+        return storageFallback(req, res, next);
+      }
+      return next(app.locals.storageError);
+    }
+    next();
+  }, next));
   app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE, files: 1 } });
@@ -1224,6 +1239,10 @@ function createApp(options = {}) {
         ? 'Images must be 15 MB or smaller.' : 'The image upload could not be accepted.' });
     }
     const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status >= 500 && storageFallback && req.path.startsWith('/api/')) {
+      console.error('Cloud storage request failed; serving the read-only portfolio fallback:', error);
+      return storageFallback(req, res, next);
+    }
     if (status >= 500) console.error(error);
     res.status(status).json({ error: status >= 500
       ? 'The request could not be completed. Check the server logs.' : error.message });
@@ -1231,7 +1250,7 @@ function createApp(options = {}) {
   return app;
 }
 
-function createVercelFallbackApp() {
+function createVercelFallbackApp({ storageUnavailable = false } = {}) {
   const app = express();
   const designs = buildLegacyDesigns().map(design => designForApi(design));
   const content = { ...DEFAULT_CONTENT };
@@ -1243,6 +1262,7 @@ function createVercelFallbackApp() {
   }));
   const storageConfiguration = {
     storageConfigured: false,
+    storageUnavailable,
     missingConfiguration: [
       ...(!(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) ? ['SUPABASE_URL'] : []),
       ...(!process.env.SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : [])
@@ -1269,7 +1289,9 @@ function createVercelFallbackApp() {
     authenticated: false, requiresSetup: false, ...storageConfiguration
   }));
   app.use('/api/admin', (req, res) => res.status(503).json({
-    error: `Admin editing is unavailable until persistent storage is configured (${storageConfiguration.missingConfiguration.join(', ')}).`,
+    error: storageUnavailable
+      ? 'Admin editing is temporarily unavailable because persistent storage could not be reached. Check the deployment configuration and server logs.'
+      : `Admin editing is unavailable until persistent storage is configured (${storageConfiguration.missingConfiguration.join(', ')}).`,
     ...storageConfiguration
   }));
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));

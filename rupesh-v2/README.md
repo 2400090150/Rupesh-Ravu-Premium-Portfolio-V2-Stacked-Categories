@@ -44,7 +44,7 @@ The Vercel configuration serves this folder's static site and routes API request
 
 The `portfolio-assets` Supabase Storage bucket is created by the schema script and is public so portfolio images can load. Upload and metadata changes are stored in Supabase and survive function restarts and redeployments. The migration command copies existing portfolio records, Admin settings, credentials, and referenced uploads.
 
-Until Supabase credentials are configured, Vercel serves the original artwork and category marquees in read-only fallback mode. Admin editing and uploaded files require persistent Supabase storage and remain disabled until it is configured.
+Until Supabase credentials are configured, Vercel serves the original artwork and category marquees in read-only fallback mode. If configured storage cannot initialize, the public portfolio also falls back to this read-only mode instead of returning API errors; the admin page explains that storage is unavailable. Admin editing and uploaded files require a working Supabase schema, connection, and configuration.
 
 ## Validate
 

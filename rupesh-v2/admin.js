@@ -58,17 +58,29 @@ function setAuthenticated(session) {
 }
 
 function addSelectOptions(select) {
+  const previousValue = select.value;
   select.replaceChildren(...categories.map(category => {
     const option = document.createElement('option');
     option.value = category.slug;
     option.textContent = category.title;
     return option;
   }));
+  if (categories.length && (!previousValue || !categories.some(category => category.slug === previousValue))) {
+    select.value = categories[0].slug;
+  } else if (select.value) {
+    const active = categories.find(category => category.slug === select.value);
+    if (!active) select.value = categories[0].slug;
+  }
 }
 
 async function initialize() {
   const session = await request('/api/admin/session');
   if (!session.storageConfigured) {
+    if (session.storageUnavailable) {
+      document.getElementById('storageSetupMessage').textContent =
+        'The portfolio is available in read-only mode because persistent storage could not be reached. Check the deployment configuration and server logs before enabling admin edits.';
+      document.getElementById('storageMigrationHelp').hidden = true;
+    }
     document.getElementById('storageSetup').hidden = false;
     return;
   }
