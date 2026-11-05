@@ -14,6 +14,12 @@
   <div class="admin-heading"><p class="kicker">RAVU.FX / PRIVATE DASHBOARD</p><h1>DESIGN<br><em>MANAGEMENT</em></h1></div>
   <p id="adminStatus" class="admin-status" role="status" hidden></p>
   <section id="authPanel" class="admin-panel auth-panel">
+    <div id="storageSetup" hidden>
+      <p class="kicker">PERSISTENT STORAGE REQUIRED</p>
+      <h2>Admin editing is temporarily unavailable.</h2>
+      <p>The live portfolio is showing its original artwork in read-only mode. To enable sign-in, saved edits, and durable image uploads, configure <code>SUPABASE_URL</code> and <code>SUPABASE_SERVICE_ROLE_KEY</code> in Vercel, then redeploy.</p>
+      <p>After storage is connected, existing portfolio records and uploads can be migrated using the instructions in the project README.</p>
+    </div>
     <form id="setupForm" hidden>
       <p class="kicker">FIRST-TIME SETUP</p><h2>Create your admin password</h2>
       <p>Copy the one-time setup token printed in the server terminal, then choose a password with at least 12 characters.</p>

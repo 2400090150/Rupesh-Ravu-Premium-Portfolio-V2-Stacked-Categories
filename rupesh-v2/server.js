@@ -429,6 +429,11 @@ async function initialize(client) {
 }
 
 async function seedLegacyDesigns(client) {
+  const designs = buildLegacyDesigns();
+  if (designs.length) fail(await client.from('designs').insert(designs));
+}
+
+function buildLegacyDesigns() {
   const legacyWorks = JSON.parse(fs.readFileSync(path.join(ROOT, 'works.json'), 'utf8'));
   const extras = [
     { title: 'ORA Coffee', description: 'A coffee identity and logo design.', src: 'assets/gallery/ORA%20(2).png' },
@@ -453,7 +458,7 @@ async function seedLegacyDesigns(client) {
       image_url: work.src, display_background_color: '#ffffff', position: positions[category]++, created_at: createdAt
     };
   })];
-  if (designs.length) fail(await client.from('designs').insert(designs));
+  return designs;
 }
 
 async function ensureFeaturedDesigns(client, category, initialCount = 4) {
@@ -1221,6 +1226,61 @@ function createApp(options = {}) {
   return app;
 }
 
+function createVercelFallbackApp() {
+  const app = express();
+  const designs = buildLegacyDesigns().map(design => designForApi(design));
+  const content = { ...DEFAULT_CONTENT };
+  const categories = CATEGORY_DEFINITIONS.map(category => ({
+    ...category,
+    visible: true,
+    marqueeText: content[MARQUEE_SETTING_BY_SLUG[category.slug]],
+    designs: designs.filter(design => design.category === category.slug).slice(0, 4)
+  }));
+  const storageConfiguration = {
+    storageConfigured: false,
+    missingConfiguration: [
+      ...(!(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) ? ['SUPABASE_URL'] : []),
+      ...(!process.env.SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : [])
+    ]
+  };
+  app.disable('x-powered-by');
+  app.get('/api/site-logo', (req, res) => {
+    res.set('Cache-Control', 'no-store').redirect(302, DEFAULT_CONTENT.headerLogoUrl);
+  });
+  app.get('/api/portfolio', (req, res) => res.json({
+    categories, content, customSections: [], ...storageConfiguration
+  }));
+  app.get('/api/tools', (req, res) => res.json({ tools: [] }));
+  app.get('/api/certificates', (req, res) => res.json({ certificates: [] }));
+  app.get('/api/categories/:slug/designs', (req, res) => {
+    const category = categories.find(item => item.slug === req.params.slug);
+    if (!category) return res.status(404).json({ error: 'Design category not found.' });
+    res.json({
+      category: { ...category, designs: undefined },
+      designs: designs.filter(design => design.category === category.slug)
+    });
+  });
+  app.get('/api/admin/session', (req, res) => res.json({
+    authenticated: false, requiresSetup: false, ...storageConfiguration
+  }));
+  app.use('/api/admin', (req, res) => res.status(503).json({
+    error: `Admin editing is unavailable until persistent storage is configured (${storageConfiguration.missingConfiguration.join(', ')}).`,
+    ...storageConfiguration
+  }));
+  app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));
+  app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'admin.html')));
+  app.get('/about', (req, res) => res.sendFile(path.join(ROOT, 'about.html')));
+  app.get('/contact', (req, res) => res.sendFile(path.join(ROOT, 'contact.html')));
+  app.get('/certificates', (req, res) => res.sendFile(path.join(ROOT, 'certificates.html')));
+  app.get('/:slug', (req, res, next) => {
+    if (!validCategory(req.params.slug)) return next();
+    res.sendFile(path.join(ROOT, 'category.html'));
+  });
+  app.use(['/server.js', '/package.json', '/package-lock.json'], (req, res) => res.sendStatus(404));
+  app.use(express.static(ROOT, { dotfiles: 'deny', index: 'index.html' }));
+  return app;
+}
+
 if (require.main === module) {
   let app;
   let config;
@@ -1249,6 +1309,7 @@ if (require.main === module) {
 module.exports = {
   CATEGORY_DEFINITIONS,
   createApp,
+  createVercelFallbackApp,
   cleanUnusedUpload,
   getDatabase,
   initialize,

@@ -68,6 +68,10 @@ function addSelectOptions(select) {
 
 async function initialize() {
   const session = await request('/api/admin/session');
+  if (!session.storageConfigured) {
+    document.getElementById('storageSetup').hidden = false;
+    return;
+  }
   if (session.authenticated) {
     setAuthenticated(session);
     return;
