@@ -11,6 +11,8 @@ const certificateForm = document.getElementById('certificateForm');
 const certificateList = document.getElementById('certificateList');
 const toolForm = document.getElementById('toolForm');
 const toolList = document.getElementById('toolList');
+const siteLogoForm = document.getElementById('siteLogoForm');
+const siteLogoPreview = document.getElementById('siteLogoPreview');
 const portfolioUpdateChannel = 'BroadcastChannel' in window
   ? new BroadcastChannel('ravu-portfolio-updates')
   : null;
@@ -110,6 +112,14 @@ function fillContentForm(content, sectionData, customSectionData) {
     titleInput.maxLength = 80;
     titleInput.required = true;
     titleLabel.append(titleInput);
+    const marqueeLabel = document.createElement('label');
+    marqueeLabel.textContent = 'Moving marquee text';
+    const marqueeInput = document.createElement('input');
+    marqueeInput.name = `section-marquee-${category.slug}`;
+    marqueeInput.value = category.marqueeText;
+    marqueeInput.maxLength = 80;
+    marqueeInput.required = true;
+    marqueeLabel.append(marqueeInput);
     const descriptionLabel = document.createElement('label');
     descriptionLabel.textContent = 'Section description';
     const descriptionInput = document.createElement('textarea');
@@ -126,7 +136,7 @@ function fillContentForm(content, sectionData, customSectionData) {
     visibilityInput.type = 'checkbox';
     visibilityInput.checked = category.visible;
     visibilityLabel.append(visibilityInput, document.createTextNode(' Show on homepage'));
-    fieldset.append(legend, titleLabel, descriptionLabel, visibilityLabel);
+    fieldset.append(legend, titleLabel, marqueeLabel, descriptionLabel, visibilityLabel);
     settings.append(fieldset);
   });
   renderCustomSections(customSectionData);
@@ -771,6 +781,33 @@ toolForm.addEventListener('submit', async event => {
 
 document.getElementById('cancelToolEdit').addEventListener('click', resetToolForm);
 
+siteLogoForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const image = siteLogoForm.elements.namedItem('image').files[0];
+  if (!image) {
+    showStatus('Choose a PNG, JPG, or WebP logo image.', true);
+    return;
+  }
+  const body = new FormData();
+  body.set('image', image);
+  try {
+    await request('/api/admin/site-logo', { method: 'PUT', body });
+    const updatedUrl = `/api/site-logo?updated=${Date.now()}`;
+    siteLogoPreview.src = updatedUrl;
+    document.querySelectorAll('header .logo img, .contact-logo img').forEach(logo => {
+      logo.src = updatedUrl;
+    });
+    notifyPortfolioUpdated();
+    siteLogoForm.reset();
+    showStatus('Header logo updated across the website.');
+  } catch (error) {
+    const message = error.message === 'API route not found.'
+      ? 'Restart the portfolio server to enable header logo uploads.'
+      : error.message;
+    showStatus(message, true);
+  }
+});
+
 document.getElementById('contentForm').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -782,6 +819,7 @@ document.getElementById('contentForm').addEventListener('submit', async event =>
   const sectionSettings = categories.map(category => ({
     slug: category.slug,
     title: formData.get(`section-title-${category.slug}`),
+    marqueeText: formData.get(`section-marquee-${category.slug}`),
     description: formData.get(`section-description-${category.slug}`),
     visible: formData.get(`section-visible-${category.slug}`) === 'on'
   }));

@@ -125,6 +125,7 @@ async function loadPortfolio() {
     section.hidden = !category.visible;
     setText(`title-${category.slug}`, category.title);
     setText(`description-${category.slug}`, category.description);
+    ensureSectionMarquee(section, category.marqueeText || getCategoryMarqueeText(category), category.slug);
     if (!category.visible) return;
     if (!Array.isArray(category.designs) || category.designs.length < 1 || category.designs.length > 4) {
       throw new Error(`${category.title} must have between one and four featured designs.`);
@@ -152,8 +153,72 @@ function renderCustomSections(sections) {
     description.className = 'custom-home-description';
     description.textContent = section.description;
     element.append(number, title, description);
+    ensureSectionMarquee(element, section.title);
     return element;
   }));
+}
+
+function getCategoryMarqueeText(category) {
+  const defaultMarquees = {
+    'logo-designs': { titles: ['LOGO DESIGNS'], text: 'LOGOPHOLIO' },
+    'product-design': { titles: ['PRODUCT DESIGN', 'PACKAGE DESIGN'], text: 'PACKAGING' },
+    'marketing-branding': { titles: ['MARKETING & BRANDING'], text: 'BRANDING' },
+    typography: { titles: ['TYPOGRAPHY'], text: 'TYPOPHOLIO' }
+  };
+  const defaultMarquee = defaultMarquees[category.slug];
+  const title = category.title.trim().toUpperCase();
+  return defaultMarquee?.titles.includes(title) ? defaultMarquee.text : category.title;
+}
+
+function ensureSectionMarquee(section, text, slug = '') {
+  let viewport = section.querySelector(':scope > .section-title-marquee');
+  if (!viewport) {
+    viewport = document.createElement('div');
+    viewport.className = 'section-title-marquee';
+    viewport.setAttribute('aria-hidden', 'true');
+    const track = document.createElement('div');
+    track.className = 'section-title-marquee-track';
+    const group = document.createElement('div');
+    group.className = 'section-title-marquee-group';
+    track.append(group);
+    viewport.append(track);
+    section.prepend(viewport);
+  }
+  viewport.dataset.marqueeText = text;
+  viewport.dataset.direction = ['logo-designs', 'marketing-branding'].includes(slug) ? 'left' : 'right';
+  buildSectionMarquee(viewport);
+}
+
+function buildSectionMarquee(viewport) {
+  const track = viewport.querySelector('.section-title-marquee-track');
+  const group = track?.querySelector('.section-title-marquee-group');
+  const width = viewport.getBoundingClientRect().width;
+  if (!track || !group || !width) return;
+
+  const word = document.createElement('span');
+  word.textContent = viewport.dataset.marqueeText || 'LOGOPHOLIO';
+  group.replaceChildren(word);
+  while (group.scrollWidth < width) group.append(word.cloneNode(true));
+
+  const duplicate = group.cloneNode(true);
+  duplicate.setAttribute('aria-hidden', 'true');
+  track.replaceChildren(group, duplicate);
+  track.style.setProperty('--marquee-duration', `${group.scrollWidth / 90}s`);
+  track.dataset.direction = viewport.dataset.direction || 'right';
+}
+
+function refreshSectionMarquees() {
+  document.querySelectorAll('.section-title-marquee').forEach(buildSectionMarquee);
+}
+
+let marqueeResizeScheduled = false;
+function scheduleSectionMarqueeRefresh() {
+  if (marqueeResizeScheduled) return;
+  marqueeResizeScheduled = true;
+  window.requestAnimationFrame(() => {
+    marqueeResizeScheduled = false;
+    refreshSectionMarquees();
+  });
 }
 
 function renderTools(tools) {
@@ -180,6 +245,45 @@ function renderTools(tools) {
   }));
 }
 
+function initializeMarquee() {
+  const track = document.querySelector('.marquee-track');
+  const group = track?.querySelector('.marquee-group');
+  const source = group?.querySelector('.marquee-text');
+  if (!track || !group || !source) return;
+
+  const text = source.textContent.trim();
+  if (!text) return;
+  let viewportWidth = 0;
+  const buildTrack = () => {
+    viewportWidth = window.innerWidth;
+    group.replaceChildren();
+    const first = source.cloneNode(true);
+    first.textContent = text;
+    group.append(first);
+    while (group.scrollWidth < viewportWidth) {
+      const repeat = source.cloneNode(true);
+      repeat.textContent = text;
+      repeat.setAttribute('aria-hidden', 'true');
+      group.append(repeat);
+    }
+
+    const duplicate = group.cloneNode(true);
+    duplicate.setAttribute('aria-hidden', 'true');
+    track.replaceChildren(group, duplicate);
+  };
+
+  const rebuildOnResize = () => {
+    if (window.innerWidth !== viewportWidth) buildTrack();
+  };
+
+  buildTrack();
+  if (document.fonts?.ready) document.fonts.ready.then(buildTrack);
+  window.addEventListener('resize', rebuildOnResize, { passive: true });
+}
+
+initializeMarquee();
+window.addEventListener('resize', scheduleSectionMarqueeRefresh, { passive: true });
+if (document.fonts?.ready) document.fonts.ready.then(refreshSectionMarquees);
 document.getElementById('close').addEventListener('click', closeModal);
 modal.addEventListener('click', event => {
   if (event.target === modal) closeModal();

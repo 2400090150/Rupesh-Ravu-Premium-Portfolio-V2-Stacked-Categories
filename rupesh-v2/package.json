@@ -6,12 +6,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "migrate:supabase": "node scripts/migrate-to-supabase.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "express": "^5.1.0",
     "multer": "^2.0.2"
   }

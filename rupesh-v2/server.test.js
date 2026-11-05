@@ -43,6 +43,9 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
   await t.test('preserves the existing work and exposes exactly four category sections', async () => {
     const { response, data } = await requestJson('/api/portfolio');
     assert.equal(response.status, 200);
+    const defaultLogo = await fetch(`${baseUrl}/api/site-logo`, { redirect: 'manual' });
+    assert.equal(defaultLogo.status, 302);
+    assert.equal(defaultLogo.headers.get('location'), '/assets/ravu-fx-logo.png?v=4');
     assert.deepEqual(data.categories.map(category => category.slug), CATEGORY_DEFINITIONS.map(category => category.slug));
     for (const category of data.categories) {
       assert.equal(category.designs.length, 4, `${category.slug} should have exactly four featured designs`);
@@ -95,6 +98,35 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       body: JSON.stringify({ email: 'RAVU.FX@gmail.com', password: 'a-strong-password-123' })
     });
     assert.equal(validLogin.response.status, 200);
+  });
+
+  await t.test('lets admins replace the shared header logo', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',
+      'base64'
+    );
+    const unauthorized = await fetch(`${baseUrl}/api/admin/site-logo`, { method: 'PUT' });
+    assert.equal(unauthorized.status, 401);
+
+    const uploadLogo = async () => {
+      const body = new FormData();
+      body.set('image', new Blob([png], { type: 'image/png' }), 'site-logo.png');
+      return requestJson('/api/admin/site-logo', { method: 'PUT', body });
+    };
+
+    const first = await uploadLogo();
+    assert.equal(first.response.status, 200, first.data.error);
+    assert.match(first.data.logoUrl, /^\/uploads\/[a-f0-9-]+\.png$/);
+    const logoRedirect = await fetch(`${baseUrl}/api/site-logo`, { redirect: 'manual' });
+    assert.equal(logoRedirect.status, 302);
+    assert.equal(logoRedirect.headers.get('location'), first.data.logoUrl);
+    assert.equal((await requestJson(first.data.logoUrl)).response.status, 200);
+
+    const replacement = await uploadLogo();
+    assert.equal(replacement.response.status, 200, replacement.data.error);
+    assert.notEqual(replacement.data.logoUrl, first.data.logoUrl);
+    assert.equal((await requestJson(first.data.logoUrl)).response.status, 404);
+    assert.equal((await requestJson(replacement.data.logoUrl)).response.status, 200);
   });
 
   await t.test('supports one to four homepage designs and supports ordering', async () => {
@@ -200,9 +232,12 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       slug: category.slug,
       title: category.title,
       description: category.description,
+      marqueeText: category.marqueeText,
       visible: category.visible
     }));
     categories[0].title = 'LOGO DESIGNS / SELECTED';
+    categories[0].marqueeText = 'LOGOPHOLIO CUSTOM';
+    categories[2].marqueeText = 'BRANDING CUSTOM';
     const customSections = [
       {
         id: 'custom-intro',
@@ -227,6 +262,8 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(publicContent.data.content.heroLead, content.heroLead);
     assert.equal(publicContent.data.content.contactEmail, content.contactEmail);
     assert.equal(publicContent.data.categories[0].title, categories[0].title);
+    assert.equal(publicContent.data.categories[0].marqueeText, categories[0].marqueeText);
+    assert.equal(publicContent.data.categories[2].marqueeText, categories[2].marqueeText);
     assert.equal(publicContent.data.categories.length, 4);
     assert.deepEqual(publicContent.data.customSections.map(section => section.id), ['custom-intro']);
     const adminContent = await requestJson('/api/admin/content');

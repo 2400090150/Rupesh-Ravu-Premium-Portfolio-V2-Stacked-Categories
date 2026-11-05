@@ -18,6 +18,12 @@ const CATEGORY_DEFINITIONS = [
   { slug: 'typography', title: 'TYPOGRAPHY', description: 'Type-led compositions and expressive visual studies.' }
 ];
 const CATEGORY_LABELS = Object.fromEntries(CATEGORY_DEFINITIONS.map(category => [category.slug, category.title]));
+const MARQUEE_SETTING_BY_SLUG = {
+  'logo-designs': 'marqueeLogoDesigns',
+  'product-design': 'marqueeProductDesign',
+  'marketing-branding': 'marqueeMarketingBranding',
+  typography: 'marqueeTypography'
+};
 const DARK_LOGOS = new Set(['Orbital Systems', 'Synapse Studios 1', 'Synapse Studios', 'Wave Front Media']);
 const RAW_CATEGORY_MAP = {
   'baked by beth': 'logo-designs', 'clay making 2': 'marketing-branding', 'elevate co.': 'logo-designs',
@@ -50,7 +56,12 @@ const DEFAULT_CONTENT = {
   aboutText: 'My work moves between cinematic imagery and stripped-back typography. I like strong contrast, a clear hero, unexpected cropping and compositions that feel considered rather than crowded.',
   contactPhone: '+91 950 251 5671',
   contactEmail: 'ravu.fx@gmail.com',
-  contactInstagram: '@ravu.fx'
+  contactInstagram: '@ravu.fx',
+  headerLogoUrl: '/assets/ravu-fx-logo.png?v=4',
+  marqueeLogoDesigns: 'LOGOPHOLIO',
+  marqueeProductDesign: 'PACKAGING',
+  marqueeMarketingBranding: 'BRANDING',
+  marqueeTypography: 'TYPOPHOLIO'
 };
 
 function normalizeTitle(title) {
@@ -471,9 +482,11 @@ async function getContent(client) {
 }
 
 async function getCategories(client) {
+  const content = await getContent(client);
   return (await select(client, 'categories', 'slug,title,description,visible,sort_order',
     query => query.order('sort_order'))).map(({ sort_order, ...category }) => ({
-    ...category, visible: Boolean(category.visible)
+    ...category, visible: Boolean(category.visible),
+    marqueeText: content[MARQUEE_SETTING_BY_SLUG[category.slug]] || category.title
   }));
 }
 
@@ -586,15 +599,24 @@ async function storeAsset(client, file, kind) {
   });
   if (result.error) fail(result);
   const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
-  if (!data?.publicUrl) throw new Error('Local asset storage did not return a public URL.');
+  if (!data?.publicUrl) throw new Error('Asset storage did not return a public URL.');
   return { url: data.publicUrl, filename, extension: info.extension, type: info.type };
 }
 
 function storageFilename(url) {
   try {
     const parsed = new URL(url, 'http://localhost');
-    if (parsed.origin !== 'http://localhost' || !parsed.pathname.startsWith('/uploads/')) return null;
-    const filename = decodeURIComponent(parsed.pathname.slice('/uploads/'.length));
+    let encodedFilename;
+    if (parsed.origin === 'http://localhost' && parsed.pathname.startsWith('/uploads/')) {
+      encodedFilename = parsed.pathname.slice('/uploads/'.length);
+    } else {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl || parsed.origin !== new URL(supabaseUrl).origin) return null;
+      const prefix = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+      if (!parsed.pathname.startsWith(prefix)) return null;
+      encodedFilename = parsed.pathname.slice(prefix.length);
+    }
+    const filename = decodeURIComponent(encodedFilename);
     return /^[a-f0-9-]{36}\.[a-z0-9]+$/i.test(filename) ? filename : null;
   } catch { return null; }
 }
@@ -606,6 +628,8 @@ async function cleanUnusedUpload(client, url) {
     const used = await select(client, table, 'id', query => query.eq(column, url).limit(1));
     if (used.length) return;
   }
+  const settingUsage = await select(client, 'site_settings', 'key', query => query.eq('value', url).limit(1));
+  if (settingUsage.length) return;
   const result = await client.storage.from(STORAGE_BUCKET).remove([filename]);
   if (result.error) console.error('Could not remove unused uploaded asset:', result.error.message);
 }
@@ -652,11 +676,28 @@ function verifyConfig(options) {
     throw new Error('Set ADMIN_SESSION_SECRET to a random value of at least 32 bytes in production.');
   }
   const sessionSecret = configuredSessionSecret || crypto.randomBytes(32).toString('base64url');
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (Boolean(supabaseUrl) !== Boolean(supabaseKey)) {
+    throw new Error('Set both SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to enable persistent cloud storage.');
+  }
+  if (process.env.VERCEL && !options.client && !supabaseUrl) {
+    throw new Error('Configure Supabase before deploying this portfolio to Vercel.');
+  }
   const uploadDirectory = process.env.PORTFOLIO_UPLOAD_DIR || path.join(ROOT, 'uploads');
+  let database = options.database;
+  let client = options.client;
+  if (!client && supabaseUrl && supabaseKey) {
+    const { createClient } = require('@supabase/supabase-js');
+    client = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+  }
+  if (!database && !client) database = getDatabase();
   return {
-    database: options.database || getDatabase(),
-    client: options.client || createLocalClient(options.database || getDatabase(), uploadDirectory),
-    uploadDirectory,
+    database,
+    client: client || createLocalClient(database, uploadDirectory),
+    uploadDirectory: client && !database ? null : uploadDirectory,
     sessionSecret,
     setupToken: options.bootstrapToken || process.env.ADMIN_SETUP_TOKEN || crypto.randomBytes(24).toString('base64url')
   };
@@ -671,6 +712,7 @@ function createApp(options = {}) {
   app.locals.database = config.database;
   app.locals.databaseClient = client;
   app.locals.ready = initialize(client);
+  app.use((req, res, next) => app.locals.ready.then(() => next(), next));
   app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE, files: 1 } });
@@ -751,6 +793,11 @@ function createApp(options = {}) {
     });
   }));
 
+  app.get('/api/site-logo', route(async (req, res) => {
+    const content = await getContent(client);
+    res.set('Cache-Control', 'no-store').redirect(302, content.headerLogoUrl || DEFAULT_CONTENT.headerLogoUrl);
+  }));
+
   app.get('/api/categories/:slug/designs', route(async (req, res) => {
     if (!validCategory(req.params.slug)) throw createError(404, 'Design category not found.');
     const categories = await getCategories(client);
@@ -825,6 +872,20 @@ function createApp(options = {}) {
     res.json({ certificates: await orderedRecords(client, 'certificates') })));
   app.get('/api/admin/tools', adminOnly, route(async (req, res) =>
     res.json({ tools: await orderedRecords(client, 'tools') })));
+
+  app.put('/api/admin/site-logo', adminOnly, csrfOnly, imageUpload.single('image'), route(async (req, res) => {
+    if (!req.file) throw createError(400, 'Choose a PNG, JPG, or WebP logo image.');
+    const asset = await storeAsset(client, req.file, 'design');
+    const content = await getContent(client);
+    try {
+      fail(await client.from('site_settings').upsert({ key: 'headerLogoUrl', value: asset.url }, { onConflict: 'key' }));
+    } catch (error) {
+      await client.storage.from(STORAGE_BUCKET).remove([asset.filename]);
+      throw error;
+    }
+    await cleanUnusedUpload(client, content.headerLogoUrl);
+    res.json({ logoUrl: asset.url });
+  }));
 
   app.post('/api/admin/certificates', adminOnly, csrfOnly, certificateUpload.single('file'), route(async (req, res) => {
     const title = requireText(req.body?.title, 'Certificate name', 120);
@@ -1063,6 +1124,7 @@ function createApp(options = {}) {
     const content = req.body?.content;
     const categorySettings = req.body?.categories;
     const customSettings = req.body?.customSections;
+    const currentContent = await getContent(client);
     if (!content || typeof content !== 'object' || Array.isArray(content) ||
         !Array.isArray(categorySettings) || categorySettings.length !== CATEGORY_DEFINITIONS.length) {
       throw createError(400, 'Provide homepage, about, contact, and all four section settings.');
@@ -1085,11 +1147,15 @@ function createApp(options = {}) {
       seen.add(item.slug);
       return {
         slug: item.slug, title: requireText(item.title, 'Section title', 80),
+        marqueeText: requireText(item.marqueeText ?? currentContent[MARQUEE_SETTING_BY_SLUG[item.slug]], 'Moving marquee text', 80),
         description: requireText(item.description, 'Section description', 500), visible: Boolean(item.visible)
       };
     });
     if (seen.size !== CATEGORY_DEFINITIONS.length) {
       throw createError(400, 'Section settings must include each of the four categories exactly once.');
+    }
+    for (const category of updatedCategories) {
+      updatedContent[MARQUEE_SETTING_BY_SLUG[category.slug]] = category.marqueeText;
     }
     let updatedSections;
     if (customSettings !== undefined) {
@@ -1132,11 +1198,13 @@ function createApp(options = {}) {
     res.sendFile(path.join(ROOT, 'category.html'));
   });
   app.use(['/server.js', '/package.json', '/package-lock.json'], (req, res) => res.sendStatus(404));
-  app.use('/uploads', (req, res, next) => {
-    if (path.extname(req.path).toLowerCase() === '.svg') res.setHeader('Content-Security-Policy', 'sandbox');
-    if (req.query.download === '1') res.attachment(path.basename(req.path));
-    next();
-  }, express.static(config.uploadDirectory, { dotfiles: 'deny' }));
+  if (config.uploadDirectory) {
+    app.use('/uploads', (req, res, next) => {
+      if (path.extname(req.path).toLowerCase() === '.svg') res.setHeader('Content-Security-Policy', 'sandbox');
+      if (req.query.download === '1') res.attachment(path.basename(req.path));
+      next();
+    }, express.static(config.uploadDirectory, { dotfiles: 'deny' }));
+  }
   app.use(express.static(ROOT, { dotfiles: 'deny', index: 'index.html' }));
   app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found.' }));
   app.use((error, req, res, next) => {

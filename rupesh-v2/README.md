@@ -28,6 +28,22 @@ By default, the SQLite database is stored at `.data/portfolio.sqlite` and upload
 
 Deploy this application to a Node.js host with a persistent writable filesystem or mounted volume. Static-only hosts and ephemeral serverless filesystems do not preserve SQLite data or uploaded images across restarts/redeploys. For production, terminate HTTPS at the host, set `NODE_ENV=production`, and provide an `ADMIN_SESSION_SECRET` with at least 32 bytes so admin cookies remain secure and stable. Keep the one-time setup token private and choose a strong admin password.
 
+### Deploy to Vercel
+
+The Vercel configuration serves this folder's static site and routes API requests to an Express function. Vercel's function filesystem is temporary, so configure Supabase before deploying to keep Admin edits and uploads persistent:
+
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor.
+2. In Vercel, import the GitHub repository and set its **Root Directory** to `rupesh-v2`.
+3. Add these environment variables to the Vercel project for every deployment environment:
+   - `SUPABASE_URL`: the Supabase project URL.
+   - `SUPABASE_SERVICE_ROLE_KEY`: the project's service-role key. Keep it private; never use it in browser code.
+   - `ADMIN_SESSION_SECRET`: a private random value of at least 32 bytes.
+   - `ADMIN_SETUP_TOKEN`: a private one-time setup token.
+4. Before deploying, migrate existing Admin data and uploaded files from your local app. In PowerShell, set `$env:SUPABASE_URL` and `$env:SUPABASE_SERVICE_ROLE_KEY` to your private project values, then run `npm run migrate:supabase`.
+5. Deploy, then open `/admin` and complete the one-time setup with the configured `ADMIN_SETUP_TOKEN` only if no admin account was migrated.
+
+The `portfolio-assets` Supabase Storage bucket is created by the schema script and is public so portfolio images can load. Upload and metadata changes are stored in Supabase and survive function restarts and redeployments. The migration command copies existing portfolio records, Admin settings, credentials, and referenced uploads.
+
 ## Validate
 
 Run `npm test` for the API, authentication, category, feature-selection, content-management, design/logo background, certificate, tool logo, upload, ordering, replacement, download, and deletion checks.

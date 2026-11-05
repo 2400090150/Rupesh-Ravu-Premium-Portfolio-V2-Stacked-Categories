@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/app.css">
 </head>
 <body class="admin-page">
-<header><a class="logo" href="/" aria-label="RAVU.FX home"><img src="/assets/ravu-fx-logo.png?v=4" alt="RAVU.FX"></a><nav><a href="/">View portfolio ↗</a></nav></header>
+<header><a class="logo" href="/" aria-label="RAVU.FX home"><img src="/api/site-logo" alt="RAVU.FX"></a><nav><a href="/">View portfolio ↗</a></nav></header>
 <main class="admin-main">
   <div class="admin-heading"><p class="kicker">RAVU.FX / PRIVATE DASHBOARD</p><h1>DESIGN<br><em>MANAGEMENT</em></h1></div>
   <p id="adminStatus" class="admin-status" role="status" hidden></p>
@@ -88,6 +88,15 @@
         <div class="form-actions"><button class="button" type="submit">Upload tool logo</button><button id="cancelToolEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
       </form>
       <div id="toolList" class="asset-list"></div>
+    </section>
+    <section class="admin-panel">
+      <div class="panel-heading"><div><p class="kicker">04 / BRANDING</p><h2>Header logo</h2></div></div>
+      <p class="form-help">Upload a PNG, JPG, or WebP image to replace the logo across the website.</p>
+      <form id="siteLogoForm" class="admin-form">
+        <label class="wide-field">Logo image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label>
+        <div class="logo-live-preview wide-field"><span>Current header logo</span><img id="siteLogoPreview" src="/api/site-logo" alt="Current site logo"></div>
+        <div class="form-actions"><button class="button" type="submit">Update header logo</button></div>
+      </form>
     </section>
     <section class="admin-panel">
       <div class="panel-heading"><div><p class="kicker">04 / WEBSITE CONTENT</p><h2>Homepage &amp; contact</h2></div></div>

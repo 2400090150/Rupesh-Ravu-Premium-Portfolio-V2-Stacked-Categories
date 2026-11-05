@@ -87,6 +87,19 @@
 #customHomeSections .custom-home-section{width:min(1160px,92vw);margin:0 auto;padding:68px 0;border-bottom:1px solid var(--line)}
 .custom-home-section h2{max-width:16ch;margin:12px 0;font-size:clamp(34px,7vw,86px);line-height:.9;letter-spacing:-.07em;text-transform:uppercase}
 .custom-home-description{max-width:60ch;margin:20px 0 0;color:var(--muted);font-size:clamp(15px,2vw,20px);line-height:1.7}
+.text-marquee{overflow:hidden;padding:clamp(32px,6vw,76px) 0}
+.marquee-viewport{overflow:hidden}
+.marquee-track{display:flex;width:max-content;animation:marquee-right 32s linear infinite;transform:translate3d(-50%,0,0);will-change:transform}
+.marquee-group{display:flex;flex:none;width:max-content}
+.marquee-text{flex:none;padding-right:.65em;color:var(--fg);font-size:clamp(42px,8vw,112px);font-weight:900;letter-spacing:-.075em;line-height:.9;text-transform:uppercase;white-space:nowrap}
+@keyframes marquee-right{to{transform:translate3d(0,0,0)}}
+.section-title-marquee{width:100vw;height:.7cm;margin:0 0 18px calc((100% - 100vw)/2);overflow:hidden;display:flex;align-items:center}
+.section-title-marquee-track{display:flex;width:max-content;animation:section-title-marquee-right var(--marquee-duration,18s) linear infinite;will-change:transform}
+.section-title-marquee-track[data-direction="left"]{animation-name:section-title-marquee-left}
+.section-title-marquee-group{display:flex;flex:none;width:max-content}
+.section-title-marquee-group span{flex:none;padding-right:.8em;font-size:clamp(16px,2.4vw,24px);font-weight:900;letter-spacing:-.075em;line-height:.7cm;white-space:nowrap}
+@keyframes section-title-marquee-right{from{transform:translate3d(-50%,0,0)}to{transform:translate3d(0,0,0)}}
+@keyframes section-title-marquee-left{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
 .certificates-page .category-main{max-width:1280px}
 .certificate-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:40px}
 .certificate-card{min-width:0;border:1px solid var(--line);background:#111}
