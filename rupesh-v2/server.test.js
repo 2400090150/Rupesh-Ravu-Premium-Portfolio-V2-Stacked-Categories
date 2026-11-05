@@ -62,6 +62,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
 
   await t.test('requires the one-time setup token and protects admin endpoints', async () => {
     const session = await requestJson('/api/admin/session');
+    assert.equal(session.data.storageConfigured, true);
     assert.equal(session.data.requiresSetup, true);
     const malformedCookie = await requestJson('/api/admin/session', {
       headers: { cookie: 'ravu_admin=%' }
@@ -85,7 +86,9 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     csrfToken = (await setupResponse.json()).csrfToken;
     assert.ok(adminCookie);
     assert.ok(csrfToken);
-    assert.equal((await requestJson('/api/admin/session')).data.authenticated, true);
+    const authenticatedSession = await requestJson('/api/admin/session');
+    assert.equal(authenticatedSession.data.authenticated, true);
+    assert.equal(authenticatedSession.data.storageConfigured, true);
     const invalidEmail = await requestJson('/api/admin/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -816,9 +816,14 @@ function createApp(options = {}) {
 
   app.get('/api/admin/session', route(async (req, res) => {
     const session = parseSession(req);
-    if (session) return res.json({ authenticated: true, csrfToken: session.csrfToken });
+    if (session) return res.json({ authenticated: true, csrfToken: session.csrfToken, storageConfigured: true });
     const credential = await one(client, 'admin_credentials', query => query.eq('key', 'admin'));
-    res.json({ authenticated: false, requiresSetup: !credential, bootstrapTokenAvailable: Boolean(config.setupToken) && !credential });
+    res.json({
+      authenticated: false,
+      requiresSetup: !credential,
+      bootstrapTokenAvailable: Boolean(config.setupToken) && !credential,
+      storageConfigured: true
+    });
   }));
 
   app.post('/api/admin/setup', route(async (req, res) => {
