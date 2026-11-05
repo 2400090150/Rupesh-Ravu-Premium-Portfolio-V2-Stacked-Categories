@@ -53,6 +53,16 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       assert.equal(archive.response.status, 200);
       assert.ok(archive.data.designs.length >= 4);
     }
+    const restartedApps = [
+      createApp({ database: getDatabase(), sessionSecret: 'test-restart-session-secret-with-at-least-32-bytes' }),
+      createApp({ database: getDatabase(), sessionSecret: 'test-restart-session-secret-with-at-least-32-bytes' })
+    ];
+    await Promise.all(restartedApps.map(app => app.locals.ready));
+    const restartedPortfolio = await requestJson('/api/portfolio');
+    assert.equal(restartedPortfolio.response.status, 200);
+    for (const category of restartedPortfolio.data.categories) {
+      assert.equal(category.designs.length, 4, `${category.slug} featured work should survive concurrent startup`);
+    }
     const logoArchive = await fetch(`${baseUrl}/logo-designs`);
     assert.equal(logoArchive.status, 200);
     assert.match(await logoArchive.text(), /categoryGallery/);

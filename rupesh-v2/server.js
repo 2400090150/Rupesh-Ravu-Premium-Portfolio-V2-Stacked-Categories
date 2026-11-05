@@ -467,16 +467,13 @@ async function ensureFeaturedDesigns(client, category, initialCount = 4) {
   const available = designs.map(row => row.id);
   const rows = await select(client, 'featured_designs', 'design_id,position', query =>
     query.eq('category_slug', category).order('position'));
-  const existing = rows.map(row => row.design_id).filter(id => available.includes(id)).slice(0, 4);
-  const featured = [...existing];
-  for (const id of available) {
-    if (featured.length >= (existing.length || Math.min(initialCount, available.length))) break;
-    if (!featured.includes(id)) featured.push(id);
-  }
-  fail(await client.from('featured_designs').delete().eq('category_slug', category));
-  if (featured.length) fail(await client.from('featured_designs').insert(featured.map((design_id, position) => ({
-    category_slug: category, design_id, position
-  }))));
+  const existing = rows.filter(row => available.includes(row.design_id));
+  if (existing.length) return;
+  const featured = available.slice(0, Math.min(initialCount, available.length));
+  if (featured.length) fail(await client.from('featured_designs').upsert(
+    featured.map((design_id, position) => ({ category_slug: category, design_id, position })),
+    { onConflict: 'category_slug,position', ignoreDuplicates: true }
+  ));
 }
 
 async function getContent(client) {
