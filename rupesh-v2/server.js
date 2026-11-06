@@ -596,6 +596,28 @@ async function getInternalSections(client, category, categoryDesigns = getDesign
   }));
 }
 
+async function getDesignLibrary(client, category) {
+  const [rows, featured, sections] = await Promise.all([
+    select(client, 'designs', '*', query => query.eq('category_slug', category)
+      .order('position').order('created_at').order('id')),
+    select(client, 'featured_designs', 'design_id', query => query.eq('category_slug', category)),
+    select(client, 'internal_sections', 'id,category_slug,title,position',
+      query => query.eq('category_slug', category).order('position').order('id'))
+  ]);
+  const featuredIds = new Set(featured.map(row => row.design_id));
+  const sectionTitles = new Map(sections.map(section => [section.id, section.title]));
+  const designs = rows.map(row => designForApi({
+    ...row, section_title: sectionTitles.get(row.section_id) || null
+  }, featuredIds.has(row.id)));
+  return {
+    designs,
+    sections: sections.map(section => ({
+      id: section.id, category: section.category_slug, title: section.title, position: section.position,
+      designs: designs.filter(design => design.sectionId === section.id)
+    }))
+  };
+}
+
 async function findSection(client, sectionId) {
   return one(client, 'internal_sections', query => query.eq('id', sectionId));
 }
@@ -932,12 +954,13 @@ function createApp(options = {}) {
 
   app.get('/api/categories/:slug/designs', route(async (req, res) => {
     if (!validCategory(req.params.slug)) throw createError(404, 'Design category not found.');
-    const categories = await getCategories(client);
-    const designs = getDesigns(client, req.params.slug);
-    const [designList, sections] = await Promise.all([
-      designs, getInternalSections(client, req.params.slug, designs)
+    const [categories, library] = await Promise.all([
+      getCategories(client), getDesignLibrary(client, req.params.slug)
     ]);
-    res.json({ category: categories.find(item => item.slug === req.params.slug), designs: designList, sections });
+    res.json({
+      category: categories.find(item => item.slug === req.params.slug),
+      designs: library.designs, sections: library.sections
+    });
   }));
 
   app.get('/api/certificates', route(async (req, res) => res.json({ certificates: await orderedRecords(client, 'certificates') })));
@@ -1007,11 +1030,7 @@ function createApp(options = {}) {
   app.get('/api/admin/designs', adminOnly, route(async (req, res) => {
     const category = String(req.query.category || '');
     if (!validCategory(category)) throw createError(400, 'Choose one of the four design categories.');
-    const designs = getDesigns(client, category);
-    const [designList, sections] = await Promise.all([
-      designs, getInternalSections(client, category, designs)
-    ]);
-    res.json({ designs: designList, sections });
+    res.json(await getDesignLibrary(client, category));
   }));
   app.post('/api/admin/sections', adminOnly, csrfOnly, route(async (req, res) => {
     const category = requireText(req.body?.category, 'Category', 40);
