@@ -36,12 +36,13 @@
     </form>
   </section>
   <div id="dashboard" hidden>
-    <div class="admin-toolbar"><p>Designs, featured work and homepage details are stored in the portfolio database.</p><button id="logoutButton" class="button button-secondary" type="button">Sign out</button></div>
+    <div class="admin-toolbar"><p>Changes are published when you click the corresponding Save button.</p><button id="logoutButton" class="button button-secondary" type="button">Sign out</button></div>
     <section class="admin-panel">
       <div class="panel-heading"><div><p class="kicker">01 / DESIGN LIBRARY</p><h2>Manage designs</h2></div></div>
       <form id="designForm" class="admin-form">
         <input type="hidden" name="editingId">
         <label>Category<select name="category" id="designCategory" required></select></label>
+        <label>Subsection<select name="sectionId" id="designSection"><option value="">No subsection</option></select></label>
         <label>Design name<input name="title" maxlength="120" required></label>
         <label class="wide-field">Description<textarea name="description" rows="3" maxlength="2000" required></textarea></label>
         <label class="wide-field">Design image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label>
@@ -66,7 +67,31 @@
         <label>Browse category<select id="libraryCategory"></select></label>
         <span id="featuredCount" class="featured-count">Choose 1–4 homepage designs</span>
       </div>
+      <div class="form-actions admin-list-actions">
+        <button id="saveFeaturedSelection" class="button" type="button" disabled>Save homepage selection</button>
+        <button id="saveDesignOrder" class="button button-secondary" type="button" disabled>Save design order</button>
+      </div>
       <div id="designList" class="design-list"></div>
+      <div class="internal-section-manager">
+        <div class="custom-section-heading">
+          <div><p class="kicker">CATEGORY ORGANIZATION</p><h3>Internal subsections</h3></div>
+        </div>
+        <p class="form-help">Create and arrange subsections for this category. Changes are saved when you click Save.</p>
+        <form id="addInternalSectionForm" class="internal-section-add">
+          <label>New subsection title<input name="title" maxlength="80" required></label>
+          <button class="button" type="submit">Add subsection</button>
+        </form>
+        <div id="internalSectionList" class="internal-section-list"></div>
+        <div class="form-actions admin-list-actions">
+          <button id="saveInternalSectionOrder" class="button button-secondary" type="button" disabled>Save subsection order</button>
+        </div>
+        <form id="sectionDesignUploadForm" class="section-design-upload">
+          <label>Upload to subsection<select name="sectionId" id="uploadSection" required></select></label>
+          <label>Design images<input name="images" type="file" accept="image/png,image/jpeg,image/webp" multiple required></label>
+          <p class="form-help">Choose multiple PNG, JPG, or WebP images to add them to the selected subsection.</p>
+          <button class="button" type="submit">Upload designs</button>
+        </form>
+      </div>
     </section>
     <section class="admin-panel" id="certificateManager">
       <div class="panel-heading"><div><p class="kicker">02 / CERTIFICATE ARCHIVE</p><h2>Manage certificates</h2></div></div>
@@ -80,6 +105,7 @@
         <p class="form-help wide-field">Add either a certificate file or a link, not both. Leave both empty when editing to keep the current certificate.</p>
         <div class="form-actions"><button class="button" type="submit">Upload certificate</button><button id="cancelCertificateEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
       </form>
+      <div class="form-actions admin-list-actions"><button id="saveCertificateOrder" class="button button-secondary" type="button" disabled>Save certificate order</button></div>
       <div id="certificateList" class="asset-list"></div>
     </section>
     <section class="admin-panel" id="toolManager">
@@ -93,6 +119,7 @@
         <label class="visibility-control wide-field"><input name="visible" type="checkbox" checked> Show this logo on the homepage</label>
         <div class="form-actions"><button class="button" type="submit">Upload tool logo</button><button id="cancelToolEdit" class="button button-secondary" type="button" hidden>Cancel edit</button></div>
       </form>
+      <div class="form-actions admin-list-actions"><button id="saveToolChanges" class="button button-secondary" type="button" disabled>Save tool changes</button></div>
       <div id="toolList" class="asset-list"></div>
     </section>
     <section class="admin-panel">

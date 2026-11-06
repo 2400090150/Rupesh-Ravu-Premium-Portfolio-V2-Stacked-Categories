@@ -286,6 +286,96 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.deepEqual(reordered.data.designs.map(design => design.id), reversed);
   });
 
+  await t.test('manages category subsections, batch uploads, design assignments, ordering, and deletion', async () => {
+    for (const category of CATEGORY_DEFINITIONS) {
+      const page = await fetch(`${baseUrl}/${category.slug}`);
+      assert.equal(page.status, 200);
+      assert.match(await page.text(), /id="categorySections"/);
+    }
+
+    const firstSection = await requestJson('/api/admin/sections', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: 'typography', title: 'Editorial studies' })
+    });
+    assert.equal(firstSection.response.status, 201, firstSection.data.error);
+    const secondSection = await requestJson('/api/admin/sections', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: 'typography', title: 'Poster lettering' })
+    });
+    assert.equal(secondSection.response.status, 201, secondSection.data.error);
+
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',
+      'base64'
+    );
+    const uploads = new FormData();
+    uploads.append('images', new Blob([png], { type: 'image/png' }), 'First Artwork.png');
+    uploads.append('images', new Blob([png], { type: 'image/png' }), 'Second Artwork.png');
+    const batch = await requestJson(`/api/admin/sections/${firstSection.data.section.id}/designs`, {
+      method: 'POST', body: uploads
+    });
+    assert.equal(batch.response.status, 201, batch.data.error);
+    assert.deepEqual(batch.data.designs.map(design => design.title), ['First Artwork', 'Second Artwork']);
+    assert.ok(batch.data.designs.every(design => design.sectionId === firstSection.data.section.id));
+
+    const categoryPage = await requestJson('/api/categories/typography/designs');
+    assert.equal(categoryPage.response.status, 200);
+    assert.equal(categoryPage.data.sections[0].title, 'Editorial studies');
+    assert.deepEqual(categoryPage.data.sections[0].designs.map(design => design.id),
+      batch.data.designs.map(design => design.id));
+
+    const existing = (await requestJson('/api/admin/designs?category=typography')).data.designs
+      .find(design => !design.sectionId);
+    const assignment = await requestJson(`/api/admin/designs/${existing.id}/section`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sectionId: secondSection.data.section.id })
+    });
+    assert.equal(assignment.response.status, 200, assignment.data.error);
+    assert.equal(assignment.data.design.sectionId, secondSection.data.section.id);
+
+    const rename = await requestJson(`/api/admin/sections/${firstSection.data.section.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Type experiments' })
+    });
+    assert.equal(rename.response.status, 200, rename.data.error);
+    const order = await requestJson('/api/admin/section-order', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        category: 'typography',
+        ids: [secondSection.data.section.id, firstSection.data.section.id]
+      })
+    });
+    assert.equal(order.response.status, 200, order.data.error);
+    assert.deepEqual(order.data.sections.map(section => section.title), ['Poster lettering', 'Type experiments']);
+
+    const otherCategorySection = await requestJson('/api/admin/sections', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: 'product-design', title: 'Packaging' })
+    });
+    assert.equal(otherCategorySection.response.status, 201, otherCategorySection.data.error);
+    const wrongCategory = await requestJson(`/api/admin/designs/${existing.id}/section`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sectionId: otherCategorySection.data.section.id })
+    });
+    assert.equal(wrongCategory.response.status, 400);
+
+    const removeSection = await requestJson(`/api/admin/sections/${firstSection.data.section.id}`, {
+      method: 'DELETE'
+    });
+    assert.equal(removeSection.response.status, 200, removeSection.data.error);
+    const afterDelete = await requestJson('/api/categories/typography/designs');
+    assert.ok(batch.data.designs.every(design =>
+      afterDelete.data.designs.find(item => item.id === design.id).sectionId === null));
+    assert.equal((await requestJson(batch.data.designs[0].image)).response.status, 200);
+  });
+
   await t.test('uploads, edits, replaces, features, and deletes a design', async () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',

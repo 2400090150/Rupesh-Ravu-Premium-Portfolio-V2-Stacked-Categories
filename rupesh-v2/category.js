@@ -1,8 +1,12 @@
 const CATEGORY_SLUGS = ['logo-designs', 'product-design', 'marketing-branding', 'typography'];
 const currentCategory = window.location.pathname.replace(/^\/+|\/+$/g, '');
 const gallery = document.getElementById('categoryGallery');
+const sectionsContainer = document.getElementById('categorySections');
 const statusMessage = document.getElementById('categoryStatus');
 const modal = document.getElementById('modal');
+const portfolioUpdateChannel = 'BroadcastChannel' in window
+  ? new BroadcastChannel('ravu-portfolio-updates')
+  : null;
 
 function showCategoryError(message) {
   statusMessage.textContent = message;
@@ -68,14 +72,41 @@ async function loadCategory() {
   if (!CATEGORY_SLUGS.includes(currentCategory)) throw new Error('This design category does not exist.');
   const response = await fetch(`/api/categories/${encodeURIComponent(currentCategory)}/designs`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`The design archive could not be loaded (HTTP ${response.status}).`);
-  const { category, designs } = await response.json();
+  const { category, designs, sections = [] } = await response.json();
   gallery.dataset.category = category.slug;
   document.title = `${category.title} — Rupesh Ravu`;
   document.getElementById('categoryNumber').textContent = `0${CATEGORY_SLUGS.indexOf(category.slug) + 1} / 04 — FULL ARCHIVE`;
   document.getElementById('categoryTitle').textContent = category.title;
   document.getElementById('categoryDescription').textContent = category.description;
-  gallery.replaceChildren(...designs.map((design, index) => makeCard(design, category, index)));
+  const unassignedDesigns = designs.filter(design => !design.sectionId);
+  gallery.hidden = unassignedDesigns.length === 0;
+  gallery.replaceChildren(...unassignedDesigns.map((design, index) => makeCard(design, category, index)));
+  sectionsContainer.replaceChildren(...sections.map((section, sectionIndex) => {
+    const sectionElement = document.createElement('section');
+    sectionElement.className = 'internal-category-section';
+    const heading = document.createElement('div');
+    heading.className = 'internal-section-heading';
+    const kicker = document.createElement('p');
+    kicker.className = 'kicker';
+    kicker.textContent = `SECTION ${String(sectionIndex + 1).padStart(2, '0')}`;
+    const title = document.createElement('h2');
+    title.textContent = section.title;
+    heading.append(kicker, title);
+    const sectionGallery = document.createElement('div');
+    sectionGallery.className = 'grid category-gallery';
+    sectionGallery.dataset.category = category.slug;
+    sectionGallery.replaceChildren(...section.designs.map((design, index) => makeCard(design, category, index)));
+    sectionElement.append(heading, sectionGallery);
+    return sectionElement;
+  }));
 }
+
+portfolioUpdateChannel?.addEventListener('message', event => {
+  if (event.data === 'refresh') loadCategory().catch(error => {
+    console.error(error);
+    showCategoryError(`${error.message} Please refresh or contact the site administrator.`);
+  });
+});
 
 document.getElementById('close').addEventListener('click', () => modal.classList.remove('open'));
 modal.addEventListener('click', event => {

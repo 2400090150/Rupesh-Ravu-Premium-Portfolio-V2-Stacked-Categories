@@ -7,6 +7,7 @@ const ROOT = path.join(__dirname, '..');
 const BUCKET = 'portfolio-assets';
 const TABLES = [
   ['categories', 'slug'],
+  ['internal_sections', 'id'],
   ['site_settings', 'key'],
   ['admin_credentials', 'key'],
   ['designs', 'id'],

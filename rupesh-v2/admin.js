@@ -4,13 +4,21 @@ const loginForm = document.getElementById('loginForm');
 const dashboard = document.getElementById('dashboard');
 const designForm = document.getElementById('designForm');
 const designCategory = document.getElementById('designCategory');
+const designSection = document.getElementById('designSection');
 const libraryCategory = document.getElementById('libraryCategory');
 const designList = document.getElementById('designList');
+const internalSectionList = document.getElementById('internalSectionList');
+const saveInternalSectionOrderButton = document.getElementById('saveInternalSectionOrder');
+const uploadSection = document.getElementById('uploadSection');
 const featuredCount = document.getElementById('featuredCount');
+const saveFeaturedButton = document.getElementById('saveFeaturedSelection');
+const saveDesignOrderButton = document.getElementById('saveDesignOrder');
 const certificateForm = document.getElementById('certificateForm');
 const certificateList = document.getElementById('certificateList');
+const saveCertificateOrderButton = document.getElementById('saveCertificateOrder');
 const toolForm = document.getElementById('toolForm');
 const toolList = document.getElementById('toolList');
+const saveToolChangesButton = document.getElementById('saveToolChanges');
 const siteLogoForm = document.getElementById('siteLogoForm');
 const siteLogoPreview = document.getElementById('siteLogoPreview');
 const portfolioUpdateChannel = 'BroadcastChannel' in window
@@ -25,8 +33,15 @@ const logoPreviewImage = document.getElementById('logoPreviewImage');
 let csrfToken = '';
 let categories = [];
 let currentDesigns = [];
+let currentInternalSections = [];
+let savedInternalSectionOrder = [];
 let currentCertificates = [];
 let currentTools = [];
+let savedDesignOrder = [];
+let savedFeaturedIds = [];
+let savedDesignCategory = '';
+let savedCertificateOrder = [];
+let savedTools = [];
 let customSections = [];
 let logoPreviewUrl = '';
 
@@ -177,7 +192,7 @@ function renderCustomSections(sections = customSections) {
     const titleLabel = document.createElement('label');
     titleLabel.textContent = 'Section title';
     const titleInput = document.createElement('input');
-    titleInput.value = section.title;
+    titleInput.value = section.pendingTitle ?? section.title;
     titleInput.maxLength = 80;
     titleInput.required = true;
     titleInput.addEventListener('input', () => { section.title = titleInput.value; });
@@ -234,37 +249,44 @@ function moveCustomSection(index, offset) {
 
 function updateFeaturedCount() {
   const selected = designList.querySelectorAll('input[name="featured"]:checked').length;
-  featuredCount.textContent = `${selected} of 4 selected · changes save automatically`;
+  featuredCount.textContent = `${selected} of 4 selected · save to publish`;
+  updateDesignSaveButtons();
 }
 
-async function saveFeaturedSelection(changedCheckbox) {
+function updateDesignSaveButtons() {
+  const designIds = currentDesigns.map(design => design.id);
+  const selectedIds = [...designList.querySelectorAll('input[name="featured"]:checked')].map(input => input.value);
+  saveDesignOrderButton.disabled = designIds.length === savedDesignOrder.length &&
+    designIds.every((id, index) => id === savedDesignOrder[index]);
+  saveFeaturedButton.disabled = selectedIds.length === savedFeaturedIds.length &&
+    selectedIds.every((id, index) => id === savedFeaturedIds[index]);
+}
+
+async function saveFeaturedSelection() {
   const checkboxes = [...designList.querySelectorAll('input[name="featured"]')];
   const designIds = checkboxes.filter(input => input.checked).map(input => input.value);
   if (designIds.length > 4) {
-    changedCheckbox.checked = false;
-    updateFeaturedCount();
     showStatus('Choose up to four designs for this homepage section.', true);
     return;
   }
   if (designIds.length === 0) {
-    changedCheckbox.checked = true;
-    updateFeaturedCount();
     showStatus('Keep at least one design selected for this homepage section.', true);
     return;
   }
 
-  checkboxes.forEach(input => { input.disabled = true; });
+  saveFeaturedButton.disabled = true;
   try {
     await request('/api/admin/featured', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ category: libraryCategory.value, designIds })
     });
+    savedFeaturedIds = designIds;
     notifyPortfolioUpdated();
-    await loadDesigns();
+    updateDesignSaveButtons();
     showStatus('Homepage selection updated.');
   } catch (error) {
-    await loadDesigns();
+    updateDesignSaveButtons();
     showStatus(error.message, true);
   }
 }
@@ -283,7 +305,10 @@ function renderDesigns() {
     feature.value = design.id;
     feature.checked = design.featured;
     feature.setAttribute('aria-label', `Feature ${design.title} on the homepage`);
-    feature.addEventListener('change', () => saveFeaturedSelection(feature));
+    feature.addEventListener('change', () => {
+      design.featured = feature.checked;
+      updateFeaturedCount();
+    });
     featureLabel.append(feature);
     const image = document.createElement('img');
     image.src = design.image;
@@ -299,7 +324,35 @@ function renderDesigns() {
     title.textContent = design.title;
     const description = document.createElement('p');
     description.textContent = design.description;
-    details.append(title, description);
+    const assignment = document.createElement('div');
+    assignment.className = 'design-section-assignment';
+    const assignmentLabel = document.createElement('label');
+    assignmentLabel.textContent = 'Internal subsection';
+    const assignmentSelect = document.createElement('select');
+    assignmentSelect.setAttribute('aria-label', `Subsection for ${design.title}`);
+    const noSection = document.createElement('option');
+    noSection.value = '';
+    noSection.textContent = 'No subsection';
+    assignmentSelect.append(noSection);
+    currentInternalSections.forEach(section => {
+      const option = document.createElement('option');
+      option.value = section.id;
+      option.textContent = section.title;
+      assignmentSelect.append(option);
+    });
+    assignmentSelect.value = design.pendingSectionId ?? design.sectionId ?? '';
+    const saveAssignment = document.createElement('button');
+    saveAssignment.type = 'button';
+    saveAssignment.className = 'button button-secondary';
+    saveAssignment.textContent = 'Save subsection';
+    saveAssignment.disabled = assignmentSelect.value === (design.sectionId || '');
+    assignmentSelect.addEventListener('change', () => {
+      design.pendingSectionId = assignmentSelect.value;
+      saveAssignment.disabled = assignmentSelect.value === (design.sectionId || '');
+    });
+    saveAssignment.addEventListener('click', () => saveDesignSection(design, assignmentSelect, saveAssignment));
+    assignment.append(assignmentLabel, assignmentSelect, saveAssignment);
+    details.append(title, description, assignment);
     const actions = document.createElement('div');
     actions.className = 'design-row-actions';
     const up = document.createElement('button');
@@ -317,7 +370,7 @@ function renderDesigns() {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.textContent = 'Edit';
-    edit.addEventListener('click', () => editDesign(design));
+    edit.addEventListener('click', () => editDesign(design).catch(error => showStatus(error.message, true)));
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.textContent = 'Delete';
@@ -331,30 +384,214 @@ function renderDesigns() {
 
 async function loadDesigns() {
   const result = await request(`/api/admin/designs?category=${encodeURIComponent(libraryCategory.value)}`);
+  savedDesignCategory = libraryCategory.value;
   currentDesigns = result.designs;
+  currentInternalSections = result.sections;
+  savedInternalSectionOrder = currentInternalSections.map(section => section.id);
+  savedDesignOrder = currentDesigns.map(design => design.id);
+  savedFeaturedIds = currentDesigns.filter(design => design.featured).map(design => design.id);
+  if (designCategory.value === libraryCategory.value) updateDesignSectionOptions(currentInternalSections,
+    designForm.elements.namedItem('editingId').value
+      ? designSection.value
+      : '');
+  renderInternalSections();
   renderDesigns();
 }
 
-async function moveDesign(index, direction) {
-  const ordered = currentDesigns.map(design => design.id);
-  const target = index + direction;
-  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+function updateDesignSectionOptions(sections, selectedId = '') {
+  designSection.replaceChildren();
+  const noSection = document.createElement('option');
+  noSection.value = '';
+  noSection.textContent = 'No subsection';
+  designSection.append(noSection);
+  sections.forEach(section => {
+    const option = document.createElement('option');
+    option.value = section.id;
+    option.textContent = section.title;
+    designSection.append(option);
+  });
+  designSection.value = selectedId;
+}
+
+async function loadDesignSectionOptions(category, selectedId = '') {
+  const result = await request(`/api/admin/designs?category=${encodeURIComponent(category)}`);
+  updateDesignSectionOptions(result.sections, selectedId);
+}
+
+function updateSectionOrderButton() {
+  saveInternalSectionOrderButton.disabled = currentInternalSections.length === savedInternalSectionOrder.length &&
+    currentInternalSections.every((section, index) => section.id === savedInternalSectionOrder[index]);
+}
+
+function renderInternalSections() {
+  internalSectionList.replaceChildren();
+  const sectionOptions = currentInternalSections.map(section => {
+    const option = document.createElement('option');
+    option.value = section.id;
+    option.textContent = section.title;
+    return option;
+  });
+  uploadSection.replaceChildren(...sectionOptions.map(option => option.cloneNode(true)));
+  document.getElementById('sectionDesignUploadForm').hidden = currentInternalSections.length === 0;
+  currentInternalSections.forEach((section, index) => {
+    const row = document.createElement('article');
+    row.className = 'internal-section-row';
+    const titleLabel = document.createElement('label');
+    titleLabel.textContent = `Subsection ${String(index + 1).padStart(2, '0')}`;
+    const titleInput = document.createElement('input');
+    titleInput.value = section.pendingTitle ?? section.title;
+    titleInput.maxLength = 80;
+    titleInput.required = true;
+    titleLabel.append(titleInput);
+    const actions = document.createElement('div');
+    actions.className = 'internal-section-actions';
+    const saveTitle = document.createElement('button');
+    saveTitle.type = 'button';
+    saveTitle.className = 'button button-secondary';
+    saveTitle.textContent = 'Save title';
+    saveTitle.disabled = true;
+    titleInput.addEventListener('input', () => {
+      section.pendingTitle = titleInput.value;
+      saveTitle.disabled = titleInput.value.trim() === section.title;
+    });
+    saveTitle.addEventListener('click', () => saveInternalSectionTitle(section, titleInput, saveTitle));
+    const moveUp = assetAction('↑', () => moveInternalSection(index, -1), index === 0);
+    moveUp.setAttribute('aria-label', 'Move subsection up');
+    const moveDown = assetAction('↓', () => moveInternalSection(index, 1),
+      index === currentInternalSections.length - 1);
+    moveDown.setAttribute('aria-label', 'Move subsection down');
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button button-secondary';
+    remove.textContent = 'Delete';
+    remove.addEventListener('click', () => deleteInternalSection(section));
+    actions.append(saveTitle, moveUp, moveDown, remove);
+    row.append(titleLabel, actions);
+    internalSectionList.append(row);
+  });
+  updateSectionOrderButton();
+}
+
+async function saveInternalSectionTitle(section, input, button) {
+  const title = input.value.trim();
+  if (!title) {
+    showStatus('Subsection title is required.', true);
+    return;
+  }
+  button.disabled = true;
   try {
-    await request('/api/admin/design-order', {
+    const result = await request(`/api/admin/sections/${encodeURIComponent(section.id)}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: libraryCategory.value, designIds: ordered })
+      body: JSON.stringify({ title })
     });
-    await loadDesigns();
-    showStatus('Design order updated.');
+    section.title = result.section.title;
+    delete section.pendingTitle;
+    notifyPortfolioUpdated();
+    renderInternalSections();
+    renderDesigns();
+    showStatus('Subsection title saved.');
+  } catch (error) {
+    button.disabled = false;
+    showStatus(error.message, true);
+  }
+}
+
+function moveInternalSection(index, direction) {
+  const target = index + direction;
+  [currentInternalSections[index], currentInternalSections[target]] =
+    [currentInternalSections[target], currentInternalSections[index]];
+  renderInternalSections();
+}
+
+async function saveInternalSectionOrder() {
+  const ids = currentInternalSections.map(section => section.id);
+  saveInternalSectionOrderButton.disabled = true;
+  try {
+    await request('/api/admin/section-order', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: libraryCategory.value, ids })
+    });
+    savedInternalSectionOrder = ids;
+    currentInternalSections.forEach((section, position) => { section.position = position; });
+    notifyPortfolioUpdated();
+    updateSectionOrderButton();
+    showStatus('Subsection order saved.');
+  } catch (error) {
+    updateSectionOrderButton();
+    showStatus(error.message, true);
+  }
+}
+
+async function deleteInternalSection(section) {
+  if (!window.confirm(`Delete "${section.title}"? Its designs will remain in this category without a subsection.`)) return;
+  try {
+    await request(`/api/admin/sections/${encodeURIComponent(section.id)}`, { method: 'DELETE' });
+    currentInternalSections = currentInternalSections.filter(item => item.id !== section.id);
+    savedInternalSectionOrder = savedInternalSectionOrder.filter(id => id !== section.id);
+    currentDesigns.forEach(design => {
+      if (design.sectionId === section.id) design.sectionId = null;
+      if (design.pendingSectionId === section.id) delete design.pendingSectionId;
+    });
+    renderInternalSections();
+    renderDesigns();
+    notifyPortfolioUpdated();
+    showStatus('Subsection deleted. Its designs remain available in the category.');
   } catch (error) {
     showStatus(error.message, true);
   }
 }
 
-function editDesign(design) {
+async function saveDesignSection(design, select, button) {
+  const sectionId = select.value || null;
+  button.disabled = true;
+  try {
+    const result = await request(`/api/admin/designs/${encodeURIComponent(design.id)}/section`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sectionId })
+    });
+    design.sectionId = result.design.sectionId;
+    design.sectionTitle = currentInternalSections.find(section => section.id === design.sectionId)?.title || null;
+    delete design.pendingSectionId;
+    notifyPortfolioUpdated();
+    showStatus('Design subsection assignment saved.');
+  } catch (error) {
+    button.disabled = false;
+    showStatus(error.message, true);
+  }
+}
+
+function moveDesign(index, direction) {
+  const target = index + direction;
+  [currentDesigns[index], currentDesigns[target]] = [currentDesigns[target], currentDesigns[index]];
+  renderDesigns();
+}
+
+async function saveDesignOrder() {
+  const designIds = currentDesigns.map(design => design.id);
+  saveDesignOrderButton.disabled = true;
+  try {
+    await request('/api/admin/design-order', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: libraryCategory.value, designIds })
+    });
+    savedDesignOrder = designIds;
+    notifyPortfolioUpdated();
+    updateDesignSaveButtons();
+    showStatus('Design order updated.');
+  } catch (error) {
+    updateDesignSaveButtons();
+    showStatus(error.message, true);
+  }
+}
+
+async function editDesign(design) {
   designForm.elements.namedItem('editingId').value = design.id;
   designCategory.value = design.category;
+  await loadDesignSectionOptions(design.category, design.sectionId || '');
   designForm.elements.namedItem('title').value = design.title;
   designForm.elements.namedItem('description').value = design.description;
   const designBackgroundColor = design.displayBackgroundColor || '#ffffff';
@@ -459,7 +696,8 @@ designForm.elements.namedItem('image').addEventListener('change', event => {
 });
 
 async function deleteDesign(design) {
-  if (!window.confirm(`Delete "${design.title}"? This cannot be undone.`)) return;
+  const pendingWarning = hasUnsavedCategoryChanges() ? ' Unsaved category changes will be discarded.' : '';
+  if (!window.confirm(`Delete "${design.title}"? This cannot be undone.${pendingWarning}`)) return;
   try {
     await request(`/api/admin/designs/${encodeURIComponent(design.id)}`, { method: 'DELETE' });
     notifyPortfolioUpdated();
@@ -481,6 +719,7 @@ function assetAction(label, action, disabled = false) {
 
 function renderCertificates() {
   certificateList.replaceChildren();
+  updateCertificateOrderButton();
   if (!currentCertificates.length) {
     const empty = document.createElement('p');
     empty.className = 'form-help';
@@ -519,6 +758,7 @@ function renderCertificates() {
 async function loadCertificates() {
   const result = await request('/api/admin/certificates');
   currentCertificates = result.certificates;
+  savedCertificateOrder = currentCertificates.map(certificate => certificate.id);
   renderCertificates();
 }
 
@@ -553,6 +793,7 @@ async function deleteCertificate(certificate) {
 
 function renderTools() {
   toolList.replaceChildren();
+  updateToolSaveButton();
   if (!currentTools.length) {
     const empty = document.createElement('p');
     empty.className = 'form-help';
@@ -582,7 +823,10 @@ function renderTools() {
     visibility.type = 'checkbox';
     visibility.checked = tool.visible;
     visibility.setAttribute('aria-label', `Show ${tool.name} on the homepage`);
-    visibility.addEventListener('change', () => setToolVisibility(tool, visibility.checked));
+    visibility.addEventListener('change', () => {
+      tool.visible = visibility.checked;
+      updateToolSaveButton();
+    });
     visibilityLabel.append(visibility, document.createTextNode(' Show'));
     const actions = document.createElement('div');
     actions.className = 'design-row-actions';
@@ -600,25 +844,78 @@ function renderTools() {
 async function loadTools() {
   const result = await request('/api/admin/tools');
   currentTools = result.tools;
+  savedTools = currentTools.map(tool => ({ ...tool }));
   renderTools();
 }
 
-async function moveAsset(type, index, direction) {
+function moveAsset(type, index, direction) {
   const records = type === 'certificates' ? currentCertificates : currentTools;
-  const ordered = records.map(record => record.id);
   const target = index + direction;
-  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
-  const path = type === 'certificates' ? 'certificate-order' : 'tool-order';
+  [records[index], records[target]] = [records[target], records[index]];
+  if (type === 'certificates') renderCertificates();
+  else renderTools();
+}
+
+function updateCertificateOrderButton() {
+  saveCertificateOrderButton.disabled = currentCertificates.length === savedCertificateOrder.length &&
+    currentCertificates.every((certificate, index) => certificate.id === savedCertificateOrder[index]);
+}
+
+async function saveCertificateOrder() {
+  const ids = currentCertificates.map(certificate => certificate.id);
+  saveCertificateOrderButton.disabled = true;
   try {
-    await request(`/api/admin/${path}`, {
+    await request('/api/admin/certificate-order', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ids: ordered })
+      body: JSON.stringify({ ids })
     });
-    if (type === 'certificates') await loadCertificates();
-    else await loadTools();
-    showStatus(`${type === 'tools' ? 'Tool logo' : 'Certificate'} order updated.`);
+    savedCertificateOrder = ids;
+    updateCertificateOrderButton();
+    notifyPortfolioUpdated();
+    showStatus('Certificate order updated.');
   } catch (error) {
+    updateCertificateOrderButton();
+    showStatus(error.message, true);
+  }
+}
+
+function updateToolSaveButton() {
+  const orderChanged = currentTools.length !== savedTools.length ||
+    currentTools.some((tool, index) => tool.id !== savedTools[index]?.id);
+  const visibilityChanged = currentTools.some(tool => {
+    const savedTool = savedTools.find(item => item.id === tool.id);
+    return savedTool && Boolean(tool.visible) !== Boolean(savedTool.visible);
+  });
+  saveToolChangesButton.disabled = !orderChanged && !visibilityChanged;
+}
+
+async function saveToolChanges() {
+  const toolsToSave = currentTools.map(tool => ({ ...tool }));
+  const savedToolOrder = toolsToSave.map(tool => tool.id);
+  saveToolChangesButton.disabled = true;
+  try {
+    for (const tool of toolsToSave) {
+      const savedTool = savedTools.find(item => item.id === tool.id);
+      if (savedTool && Boolean(tool.visible) !== Boolean(savedTool.visible)) {
+        await updateTool(tool, { visible: tool.visible });
+      }
+    }
+    const orderChanged = savedToolOrder.length !== savedTools.length ||
+      savedToolOrder.some((id, index) => id !== savedTools[index]?.id);
+    if (orderChanged) {
+      await request('/api/admin/tool-order', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: savedToolOrder })
+      });
+    }
+    savedTools = toolsToSave;
+    notifyPortfolioUpdated();
+    updateToolSaveButton();
+    showStatus('Tool logo changes saved.');
+  } catch (error) {
+    updateToolSaveButton();
     showStatus(error.message, true);
   }
 }
@@ -650,18 +947,6 @@ async function updateTool(tool, changes) {
   body.set('category', changes.category ?? tool.category);
   body.set('visible', String(changes.visible ?? tool.visible));
   await request(`/api/admin/tools/${encodeURIComponent(tool.id)}`, { method: 'PUT', body });
-  notifyPortfolioUpdated();
-}
-
-async function setToolVisibility(tool, visible) {
-  try {
-    await updateTool(tool, { visible });
-    await loadTools();
-    showStatus(`${tool.name} is ${visible ? 'visible' : 'hidden'} on the homepage.`);
-  } catch (error) {
-    await loadTools();
-    showStatus(error.message, true);
-  }
 }
 
 async function deleteTool(tool) {
@@ -716,8 +1001,70 @@ loginForm.addEventListener('submit', async event => {
   }
 });
 
+function hasUnsavedCategoryChanges() {
+  const sectionTitlesChanged = currentInternalSections.some((section, index) =>
+    internalSectionList.querySelectorAll('input')[index]?.value.trim() !== section.title);
+  const assignmentsChanged = currentDesigns.some(design =>
+    design.pendingSectionId !== undefined && design.pendingSectionId !== (design.sectionId || ''));
+  return !saveFeaturedButton.disabled || !saveDesignOrderButton.disabled ||
+    !saveInternalSectionOrderButton.disabled || sectionTitlesChanged || assignmentsChanged;
+}
+
+document.getElementById('addInternalSectionForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const title = new FormData(form).get('title');
+  try {
+    const result = await request('/api/admin/sections', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ category: libraryCategory.value, title })
+    });
+    currentInternalSections.push(result.section);
+    savedInternalSectionOrder.push(result.section.id);
+    form.reset();
+    renderInternalSections();
+    if (designCategory.value === libraryCategory.value) {
+      updateDesignSectionOptions(currentInternalSections, designSection.value);
+    }
+    notifyPortfolioUpdated();
+    showStatus('Subsection added.');
+  } catch (error) {
+    showStatus(error.message, true);
+  }
+});
+
+document.getElementById('sectionDesignUploadForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const sectionId = uploadSection.value;
+  const files = form.elements.namedItem('images').files;
+  if (!sectionId || !files.length) {
+    showStatus('Choose a subsection and one or more design images.', true);
+    return;
+  }
+  if (hasUnsavedCategoryChanges() &&
+      !window.confirm('Upload designs and discard the unsaved category changes?')) return;
+  try {
+    const result = await request(`/api/admin/sections/${encodeURIComponent(sectionId)}/designs`, {
+      method: 'POST',
+      body: new FormData(form)
+    });
+    form.reset();
+    notifyPortfolioUpdated();
+    await loadDesigns();
+    showStatus(`${result.designs.length} design${result.designs.length === 1 ? '' : 's'} uploaded to the subsection.`);
+  } catch (error) {
+    showStatus(error.message, true);
+  }
+});
+
+saveInternalSectionOrderButton.addEventListener('click', saveInternalSectionOrder);
+
 designForm.addEventListener('submit', async event => {
   event.preventDefault();
+  if (hasUnsavedCategoryChanges() &&
+      !window.confirm('Save this design and discard the unsaved category changes?')) return;
   const editingId = designForm.elements.namedItem('editingId').value;
   const body = new FormData(designForm);
   body.delete('editingId');
@@ -739,7 +1086,18 @@ designForm.addEventListener('submit', async event => {
 });
 
 document.getElementById('cancelEdit').addEventListener('click', resetDesignForm);
-libraryCategory.addEventListener('change', () => loadDesigns().catch(error => showStatus(error.message, true)));
+saveFeaturedButton.addEventListener('click', saveFeaturedSelection);
+saveDesignOrderButton.addEventListener('click', saveDesignOrder);
+designCategory.addEventListener('change', () => {
+  loadDesignSectionOptions(designCategory.value).catch(error => showStatus(error.message, true));
+});
+libraryCategory.addEventListener('change', () => {
+  if (hasUnsavedCategoryChanges() && !window.confirm('Discard unsaved changes for this category?')) {
+    libraryCategory.value = savedDesignCategory;
+    return;
+  }
+  loadDesigns().catch(error => showStatus(error.message, true));
+});
 
 certificateForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -769,6 +1127,7 @@ certificateForm.addEventListener('submit', async event => {
 });
 
 document.getElementById('cancelCertificateEdit').addEventListener('click', resetCertificateForm);
+saveCertificateOrderButton.addEventListener('click', saveCertificateOrder);
 certificateForm.elements.namedItem('file').addEventListener('change', event => {
   if (event.currentTarget.files.length) certificateForm.elements.namedItem('certificateUrl').value = '';
 });
@@ -796,6 +1155,7 @@ toolForm.addEventListener('submit', async event => {
 });
 
 document.getElementById('cancelToolEdit').addEventListener('click', resetToolForm);
+saveToolChangesButton.addEventListener('click', saveToolChanges);
 
 siteLogoForm.addEventListener('submit', async event => {
   event.preventDefault();
