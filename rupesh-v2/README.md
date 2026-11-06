@@ -16,7 +16,7 @@ The server listens on `127.0.0.1` by default. To expose it on a server interface
 
 ## Design management
 
-The dashboard supports design uploads (PNG, JPEG, or WebP, up to 15 MB), names, descriptions, editing, image replacement, deletion, ordering, and one to four selected homepage designs in each category. Homepage selections and design ordering are published when their Save buttons are clicked. Category archive pages display all designs in the category. Logo designs have an independent display background color, including a custom HEX value; this does not change the stored image.
+The dashboard supports design uploads (PNG, JPEG, or WebP, up to 15 MB), names, descriptions, editing, image replacement, deletion, ordering, and one to four selected homepage designs in each category. Homepage selections and design ordering are published when their Save buttons are clicked. Category archive pages display all designs in the category. Legacy subsection tables or design columns in an existing database are left untouched but are no longer read or written. Logo designs have an independent display background color, including a custom HEX value; this does not change the stored image.
 
 The same dashboard manages certificates as PDF, PNG, or JPG uploads (up to 25 MB) or secure HTTPS links, including descriptions, replacement, deletion, ordering, and the public archive at `/certificates`. Uploaded certificates can be downloaded; linked certificates open their external page. Tool and software logos can be uploaded as PNG, JPEG, WebP, or self-contained SVG (up to 15 MB), edited, ordered, and shown or hidden on the homepage. Uploaded files and management records are stored in the persistent uploads directory and SQLite database.
 
