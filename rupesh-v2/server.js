@@ -93,9 +93,31 @@ function fail(result) {
   if (result.error) {
     const error = new Error(result.error.message || 'Database request failed.');
     error.code = result.error.code;
+    error.status = result.error.status;
     throw error;
   }
   return result.data;
+}
+
+function isTransientStorageError(error) {
+  const status = Number(error.status);
+  return error instanceof TypeError || status === 429 || status >= 500 ||
+    /fetch failed|network error|timed out|connection (?:reset|closed)|econnreset|econnrefused|etimedout|eai_again/i
+      .test(`${error.message} ${error.code || ''}`);
+}
+
+async function initializeWithRetry(client, delay = milliseconds =>
+  new Promise(resolve => setTimeout(resolve, milliseconds))) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await initialize(client);
+      return;
+    } catch (error) {
+      if (!isTransientStorageError(error) || attempt >= 2) throw error;
+      console.warn(`Portfolio storage initialization attempt ${attempt + 1} failed; retrying.`);
+      await delay(200 * (attempt + 1));
+    }
+  }
 }
 
 function createRetryingFetch(fetchImplementation = globalThis.fetch, delay = milliseconds =>
@@ -786,7 +808,7 @@ function createApp(options = {}) {
   app.locals.database = config.database;
   app.locals.databaseClient = client;
   app.locals.storageError = null;
-  app.locals.ready = initialize(client).catch(error => {
+  app.locals.ready = initializeWithRetry(client).catch(error => {
     app.locals.storageError = error;
     if (storageFallback) console.error('Portfolio storage initialization failed:', error);
   });

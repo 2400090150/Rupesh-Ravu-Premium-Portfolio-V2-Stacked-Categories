@@ -13,12 +13,14 @@ const {
 } = require('./server');
 const bootstrapToken = 'test-only-initial-setup-token';
 let server;
+let app;
 let baseUrl;
 let adminCookie;
 let csrfToken;
 
 before(async () => {
-  server = createApp({ bootstrapToken }).listen(0, '127.0.0.1');
+  app = createApp({ bootstrapToken });
+  server = app.listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => {
     server.once('listening', resolve);
     server.once('error', reject);
@@ -92,6 +94,29 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     }, async () => {});
     await assert.rejects(retryWrite('https://database.example.test/write', { method: 'POST', body: '{}' }), /fetch failed/);
     assert.equal(writeAttempts, 1);
+  });
+
+  test('recovers from a transient storage error during application initialization', async () => {
+    const databaseClient = app.locals.databaseClient;
+    let categoryReadAttempts = 0;
+    const retryingClient = {
+      storage: databaseClient.storage,
+      from(table) {
+        if (table === 'categories' && categoryReadAttempts++ === 0) {
+          return {
+            select: async () => ({ data: null, error: { message: 'fetch failed' } })
+          };
+        }
+        return databaseClient.from(table);
+      }
+    };
+    const retryingApp = createApp({
+      client: retryingClient,
+      sessionSecret: 'test-retry-session-secret-with-at-least-32-bytes'
+    });
+    await retryingApp.locals.ready;
+    assert.equal(categoryReadAttempts, 2);
+    assert.equal(retryingApp.locals.storageError, null);
   });
 
   test('serves the read-only portfolio when cloud storage initialization fails', async t => {
