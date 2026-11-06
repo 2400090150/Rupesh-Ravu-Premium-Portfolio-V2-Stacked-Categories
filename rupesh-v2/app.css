@@ -153,7 +153,12 @@
   .tool-admin-row{display:grid;grid-template-columns:54px minmax(0,1fr);align-items:center}
   .tool-admin-row .tool-visibility{grid-column:1/-1}
   .tool-admin-row .design-row-actions{grid-column:1/-1}
-  #archive .work-category .grid{grid-template-columns:repeat(var(--featured-count,4),minmax(180px,1fr));overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:8px}
+  #archive .work-category .grid{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;overscroll-behavior-x:auto;padding-bottom:8px}
+  #archive .work-category .grid>.card.landscape-design{grid-column:1/-1}
+  .work-category#product-design .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));flex-flow:initial;overflow:visible}
+  .work-category#product-design .grid>.card{flex:initial;width:100%;max-width:none}
+  .work-category#product-design .grid>.card.product-design-card{width:100%!important}
+  .work-category#product-design .grid .product-design-image{width:100%!important;height:240px!important;min-height:0;max-height:240px!important;object-fit:contain!important}
   .design-row{grid-template-columns:22px 58px minmax(0,1fr);gap:10px}
   .design-row>img{width:58px;height:58px}
   .design-row-actions{grid-column:2/-1;justify-content:flex-end}
@@ -164,3 +169,12 @@
   .final h2{font-size:clamp(40px,14vw,80px)}
 }
 @media(max-width:380px){.certificate-gallery{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .category-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;columns:initial}
+  .category-gallery>.card{min-width:0;margin:0}
+  .category-gallery>.card.landscape-design{grid-column:1/-1}
+  .category-gallery[data-category="product-design"]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));flex-flow:initial;overflow:visible}
+  .category-gallery[data-category="product-design"]>.card{flex:initial;width:100%;max-width:none}
+  .category-gallery[data-category="product-design"]>.card.product-design-card{width:100%!important}
+  .category-gallery[data-category="product-design"] .product-design-image{width:100%!important;height:240px!important;min-height:0;max-height:240px!important;object-fit:contain!important}
+}

@@ -43,6 +43,9 @@ function createDesignCard(design, category, index) {
   const card = document.createElement('article');
   card.className = 'card';
   const image = document.createElement('img');
+  image.addEventListener('load', () => {
+    card.classList.toggle('landscape-design', image.naturalWidth > image.naturalHeight);
+  }, { once: true });
   card.dataset.designCategory = design.category;
   if (design.category === 'product-design') {
     card.classList.add('product-design-card');
