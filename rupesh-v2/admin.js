@@ -31,6 +31,7 @@ const backgroundHex = document.getElementById('displayBackgroundHex');
 const logoPreview = document.getElementById('logoPreview');
 const logoPreviewImage = document.getElementById('logoPreviewImage');
 let csrfToken = '';
+let dashboardRecoveryAttempts = 0;
 let categories = [];
 let currentDesigns = [];
 let currentInternalSections = [];
@@ -80,7 +81,11 @@ async function request(url, options = {}) {
     }
     break;
   }
-  if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
+  if (!response.ok) {
+    const error = new Error(data.error || `Request failed (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -88,7 +93,21 @@ function setAuthenticated(session) {
   csrfToken = session.csrfToken || '';
   document.getElementById('authPanel').hidden = Boolean(csrfToken);
   dashboard.hidden = !csrfToken;
-  if (csrfToken) loadDashboard().catch(error => showStatus(error.message, true));
+  if (csrfToken) loadDashboardWithRecovery();
+}
+
+function loadDashboardWithRecovery() {
+  loadDashboard().then(() => {
+    const recovered = dashboardRecoveryAttempts > 0;
+    dashboardRecoveryAttempts = 0;
+    if (recovered) showStatus('Dashboard reconnected. Admin changes are ready.');
+  }).catch(error => {
+    showStatus(error.message, true);
+    if (dashboardRecoveryAttempts < 4 && (error.status >= 500 || error instanceof TypeError)) {
+      dashboardRecoveryAttempts++;
+      setTimeout(loadDashboardWithRecovery, 800 * dashboardRecoveryAttempts);
+    }
+  });
 }
 
 function addSelectOptions(select) {
@@ -108,7 +127,18 @@ function addSelectOptions(select) {
 }
 
 async function initialize() {
-  const session = await request('/api/admin/session');
+  let session;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      session = await request('/api/admin/session');
+    } catch (error) {
+      if (attempt >= 2 || !(error.status >= 500 || error instanceof TypeError)) throw error;
+      await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
+      continue;
+    }
+    if (!session.storageUnavailable || attempt >= 2) break;
+    await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
+  }
   if (!session.storageConfigured) {
     if (session.storageUnavailable) {
       document.getElementById('storageSetupMessage').textContent =
