@@ -835,8 +835,8 @@ function createApp(options = {}) {
     const ready = app.locals.storageError ? initializeStorage() : app.locals.ready;
     return ready.then(() => {
       if (app.locals.storageError) {
-        if (storageFallback && req.path.startsWith('/api/') &&
-            (req.method === 'GET' || req.path.startsWith('/api/admin/'))) {
+        if (storageFallback && req.path.startsWith('/api/admin/')) return next();
+        if (storageFallback && req.path.startsWith('/api/') && req.method === 'GET') {
           return storageFallback(req, res, next);
         }
         return next(app.locals.storageError);

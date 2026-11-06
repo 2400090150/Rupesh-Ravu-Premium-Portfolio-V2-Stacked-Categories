@@ -252,8 +252,8 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(session.storageUnavailable, true);
 
     const adminResponse = await fetch(`${baseUrl}/api/admin/content`);
-    assert.equal(adminResponse.status, 503);
-    assert.match((await adminResponse.json()).error, /persistent storage could not be reached/);
+    assert.equal(adminResponse.status, 401);
+    assert.match((await adminResponse.json()).error, /Sign in to manage the portfolio/);
   });
 
   test('serves the read-only portfolio when a cloud-backed API request fails', async t => {
@@ -336,6 +336,60 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       body: JSON.stringify({ email: 'RAVU.FX@gmail.com', password: 'a-strong-password-123' })
     });
     assert.equal(validLogin.response.status, 200);
+  });
+
+  await t.test('allows admin reads and subsection writes to recover after startup initialization fails', async t => {
+    const databaseClient = app.locals.databaseClient;
+    const originalFrom = databaseClient.from.bind(databaseClient);
+    let categoryReadAttempts = 0;
+    const recoveringClient = {
+      storage: databaseClient.storage,
+      from(table) {
+        if (table === 'categories' && categoryReadAttempts++ < 5) {
+          const result = { data: null, error: { message: 'fetch failed' } };
+          const query = { then: (resolve, reject) => Promise.resolve(result).then(resolve, reject) };
+          return { select: () => query };
+        }
+        return originalFrom(table);
+      }
+    };
+    const recoveringApp = createApp({
+      client: recoveringClient,
+      storageFallback: createVercelFallbackApp({ storageUnavailable: true }),
+      sessionSecret: 'test-admin-recovery-session-secret-32-bytes'
+    });
+    await recoveringApp.locals.ready;
+    assert.ok(recoveringApp.locals.storageError);
+
+    const recoveringServer = recoveringApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => recoveringServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      recoveringServer.once('listening', resolve);
+      recoveringServer.once('error', reject);
+    });
+    const baseUrl = `http://127.0.0.1:${recoveringServer.address().port}`;
+    const login = await fetch(`${baseUrl}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ravu.fx@gmail.com', password: 'a-strong-password-123' })
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const { csrfToken: token } = await login.json();
+
+    const designs = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
+      headers: { cookie }
+    });
+    assert.equal(designs.status, 200);
+    assert.ok((await designs.json()).designs.length > 0);
+
+    const section = await fetch(`${baseUrl}/api/admin/sections`, {
+      method: 'POST',
+      headers: { cookie, 'x-csrf-token': token, 'content-type': 'application/json' },
+      body: JSON.stringify({ category: 'product-design', title: 'Recovery section' })
+    });
+    assert.equal(section.status, 201);
+    assert.equal((await section.json()).section.title, 'Recovery section');
   });
 
   await t.test('lets admins replace the shared header logo', async () => {
