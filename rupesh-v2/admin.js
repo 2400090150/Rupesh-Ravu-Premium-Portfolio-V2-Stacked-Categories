@@ -58,9 +58,28 @@ function showStatus(message, isError = false) {
 
 async function request(url, options = {}) {
   const headers = new Headers(options.headers || {});
-  if (csrfToken && options.method && options.method !== 'GET') headers.set('x-csrf-token', csrfToken);
-  const response = await fetch(url, { ...options, headers, credentials: 'same-origin' });
-  const data = await response.json().catch(() => ({}));
+  const method = String(options.method || 'GET').toUpperCase();
+  if (csrfToken && method !== 'GET') headers.set('x-csrf-token', csrfToken);
+  const canRetry = method === 'GET';
+  const isSessionRequest = url.startsWith('/api/admin/session');
+  let response;
+  let data;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      response = await fetch(url, { ...options, headers, credentials: 'same-origin' });
+      data = await response.json().catch(() => ({}));
+    } catch (error) {
+      if (!canRetry || attempt >= 4) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+      continue;
+    }
+    const storageUnavailable = isSessionRequest && data.storageUnavailable;
+    if (canRetry && attempt < 4 && (!response.ok && response.status >= 500 || storageUnavailable)) {
+      await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
   if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
   return data;
 }
