@@ -13,7 +13,7 @@ const MAX_CERTIFICATE_SIZE = 25 * 1024 * 1024;
 const STORAGE_BUCKET = 'portfolio-assets';
 const CATEGORY_DEFINITIONS = [
   { slug: 'logo-designs', title: 'LOGO DESIGNS', description: 'Identity marks, symbols and visual systems.' },
-  { slug: 'product-design', title: 'PRODUCT DESIGN', description: 'Product-led visuals, objects and presentation concepts.' },
+  { slug: 'product-design', title: 'FOOD & BAVERAGE', description: 'Product-led visuals, objects and presentation concepts.' },
   { slug: 'marketing-branding', title: 'MARKETING & BRANDING', description: 'Campaigns, event visuals and brand communication.' },
   { slug: 'typography', title: 'TYPOGRAPHY', description: 'Type-led compositions and expressive visual studies.' }
 ];
@@ -127,7 +127,13 @@ function createRetryingFetch(fetchImplementation = globalThis.fetch, delay = mil
     const retrySafe = method === 'GET' || method === 'HEAD';
     for (let attempt = 0; ; attempt++) {
       try {
-        return await fetchImplementation(input, init);
+        const response = await fetchImplementation(input, init);
+        if (retrySafe && attempt < 2 && (response.status === 429 || response.status >= 500)) {
+          await response.body?.cancel();
+          await delay(100 * (attempt + 1));
+          continue;
+        }
+        return response;
       } catch (error) {
         if (!retrySafe || attempt >= 2) throw error;
         await delay(100 * (attempt + 1));

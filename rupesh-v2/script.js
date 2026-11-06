@@ -164,7 +164,7 @@ function renderCustomSections(sections) {
 function getCategoryMarqueeText(category) {
   const defaultMarquees = {
     'logo-designs': { titles: ['LOGO DESIGNS'], text: 'LOGOPHOLIO' },
-    'product-design': { titles: ['PRODUCT DESIGN', 'PACKAGE DESIGN'], text: 'PACKAGING' },
+    'product-design': { titles: ['PRODUCT DESIGN', 'FOOD & BAVERAGE', 'PACKAGE DESIGN'], text: 'PACKAGING' },
     'marketing-branding': { titles: ['MARKETING & BRANDING'], text: 'BRANDING' },
     typography: { titles: ['TYPOGRAPHY'], text: 'TYPOPHOLIO' }
   };

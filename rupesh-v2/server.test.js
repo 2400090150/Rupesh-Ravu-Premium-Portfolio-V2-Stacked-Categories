@@ -96,6 +96,31 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(writeAttempts, 1);
   });
 
+  test('retries transient Supabase server responses on reads but not writes', async () => {
+    let readAttempts = 0;
+    const retryRead = createRetryingFetch(async () => {
+      readAttempts++;
+      return new Response(readAttempts < 3 ? 'temporary outage' : 'ok', {
+        status: readAttempts < 3 ? 503 : 200
+      });
+    }, async () => {});
+    const response = await retryRead('https://database.example.test/read');
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'ok');
+    assert.equal(readAttempts, 3);
+
+    let writeAttempts = 0;
+    const retryWrite = createRetryingFetch(async () => {
+      writeAttempts++;
+      return new Response('temporary outage', { status: 503 });
+    }, async () => {});
+    const writeResponse = await retryWrite('https://database.example.test/write', {
+      method: 'POST', body: '{}'
+    });
+    assert.equal(writeResponse.status, 503);
+    assert.equal(writeAttempts, 1);
+  });
+
   test('recovers from a transient storage error during application initialization', async () => {
     const databaseClient = app.locals.databaseClient;
     let categoryReadAttempts = 0;
@@ -182,6 +207,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const portfolio = await portfolioResponse.json();
     assert.equal(portfolio.storageConfigured, false);
     assert.equal(portfolio.categories.length, 4);
+    assert.equal(portfolio.categories.find(category => category.slug === 'product-design').title, 'FOOD & BAVERAGE');
 
     const sessionResponse = await fetch(`${baseUrl}/api/admin/session`);
     assert.equal(sessionResponse.status, 200);

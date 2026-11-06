@@ -1,6 +1,6 @@
 # Ravu.FX portfolio
 
-The portfolio is a Node.js application backed by SQLite. Its four fixed design categories are Logo Designs, Product Design, Marketing & Branding, and Typography. Original portfolio records and assets are imported into the database on first startup; the original assets remain in `assets/`.
+The portfolio is a Node.js application backed by SQLite. Its four fixed design categories are Logo Designs, Food & Baverage, Marketing & Branding, and Typography. Original portfolio records and assets are imported into the database on first startup; the original assets remain in `assets/`.
 
 ## Run locally
 

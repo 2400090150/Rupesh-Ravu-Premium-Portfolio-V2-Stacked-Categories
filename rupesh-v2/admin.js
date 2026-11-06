@@ -128,32 +128,52 @@ function addSelectOptions(select) {
 
 async function initialize() {
   let session;
-  for (let attempt = 0; ; attempt++) {
+  let attempt = 0;
+  for (;;) {
     try {
       session = await request('/api/admin/session');
     } catch (error) {
-      if (attempt >= 2 || !(error.status >= 500 || error instanceof TypeError)) throw error;
-      await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
-      continue;
+      if (!(error.status >= 500 || error instanceof TypeError)) throw error;
     }
-    if (!session.storageUnavailable || attempt >= 2) break;
-    await new Promise(resolve => setTimeout(resolve, 800 * (attempt + 1)));
+    if (session && !session.storageUnavailable) break;
+    showStorageReconnect();
+    const delay = Math.min(1000 * (2 ** Math.min(attempt, 4)), 15000);
+    attempt++;
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
   if (!session.storageConfigured) {
     if (session.storageUnavailable) {
+      document.querySelector('#storageSetup h2').textContent = 'Admin editing is temporarily unavailable.';
       document.getElementById('storageSetupMessage').textContent =
         'The portfolio is available in read-only mode because persistent storage could not be reached. Check the deployment configuration and server logs before enabling admin edits.';
       document.getElementById('storageMigrationHelp').hidden = true;
+    } else {
+      document.querySelector('#storageSetup h2').textContent = 'Admin editing is unavailable.';
+      document.getElementById('storageSetupMessage').textContent =
+        'The live portfolio is showing its original artwork in read-only mode. To enable sign-in, saved edits, and durable image uploads, configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel, then redeploy.';
+      document.getElementById('storageMigrationHelp').hidden = false;
     }
     document.getElementById('storageSetup').hidden = false;
     return;
   }
+  document.getElementById('storageSetup').hidden = true;
   if (session.authenticated) {
     setAuthenticated(session);
     return;
   }
-  if (session.requiresSetup) setupForm.hidden = false;
-  else loginForm.hidden = false;
+  setupForm.hidden = !session.requiresSetup;
+  loginForm.hidden = session.requiresSetup;
+}
+
+function showStorageReconnect() {
+  setupForm.hidden = true;
+  loginForm.hidden = true;
+  const storageSetup = document.getElementById('storageSetup');
+  storageSetup.hidden = false;
+  storageSetup.querySelector('h2').textContent = 'Reconnecting to persistent storage...';
+  document.getElementById('storageSetupMessage').textContent =
+    'The storage connection is temporarily unavailable. This page will keep retrying automatically.';
+  document.getElementById('storageMigrationHelp').hidden = true;
 }
 
 async function loadDashboard() {
@@ -431,9 +451,10 @@ function renderDesigns() {
   updateFeaturedCount();
 }
 
-async function loadDesigns() {
-  const result = await request(`/api/admin/designs?category=${encodeURIComponent(libraryCategory.value)}`);
-  savedDesignCategory = libraryCategory.value;
+async function loadDesigns(category = libraryCategory.value) {
+  const result = await request(`/api/admin/designs?category=${encodeURIComponent(category)}`);
+  if (category !== libraryCategory.value) return;
+  savedDesignCategory = category;
   currentDesigns = result.designs;
   currentInternalSections = result.sections;
   savedInternalSectionOrder = currentInternalSections.map(section => section.id);
@@ -1062,24 +1083,35 @@ function hasUnsavedCategoryChanges() {
 document.getElementById('addInternalSectionForm').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget;
-  const title = new FormData(form).get('title');
+  const title = String(new FormData(form).get('title') || '').trim();
+  if (!title) {
+    showStatus('Subsection title is required.', true);
+    return;
+  }
+  const category = libraryCategory.value;
+  const submitButton = form.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
   try {
     const result = await request('/api/admin/sections', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: libraryCategory.value, title })
+      body: JSON.stringify({ category, title })
     });
-    currentInternalSections.push(result.section);
-    savedInternalSectionOrder.push(result.section.id);
-    form.reset();
-    renderInternalSections();
-    if (designCategory.value === libraryCategory.value) {
-      updateDesignSectionOptions(currentInternalSections, designSection.value);
+    if (libraryCategory.value === category) {
+      currentInternalSections.push(result.section);
+      savedInternalSectionOrder.push(result.section.id);
+      renderInternalSections();
+      if (designCategory.value === category) {
+        updateDesignSectionOptions(currentInternalSections, designSection.value);
+      }
     }
+    form.reset();
     notifyPortfolioUpdated();
     showStatus('Subsection added.');
   } catch (error) {
     showStatus(error.message, true);
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
