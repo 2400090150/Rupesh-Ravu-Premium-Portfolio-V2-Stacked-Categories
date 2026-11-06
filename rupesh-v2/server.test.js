@@ -100,14 +100,14 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     let readAttempts = 0;
     const retryRead = createRetryingFetch(async () => {
       readAttempts++;
-      return new Response(readAttempts < 3 ? 'temporary outage' : 'ok', {
-        status: readAttempts < 3 ? 503 : 200
+      return new Response(readAttempts < 5 ? 'temporary outage' : 'ok', {
+        status: readAttempts < 5 ? 503 : 200
       });
     }, async () => {});
     const response = await retryRead('https://database.example.test/read');
     assert.equal(response.status, 200);
     assert.equal(await response.text(), 'ok');
-    assert.equal(readAttempts, 3);
+    assert.equal(readAttempts, 5);
 
     let writeAttempts = 0;
     const retryWrite = createRetryingFetch(async () => {
@@ -187,7 +187,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const recoveringClient = {
       storage: databaseClient.storage,
       from(table) {
-        if (table === 'categories' && categoryReadAttempts++ < 3) {
+        if (table === 'categories' && categoryReadAttempts++ < 5) {
           const result = { data: null, error: { message: 'fetch failed' } };
           const query = { then: (resolve, reject) => Promise.resolve(result).then(resolve, reject) };
           return { select: () => query };
@@ -213,7 +213,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(response.status, 200);
     assert.equal(session.storageConfigured, true);
     assert.equal(recoveringApp.locals.storageError, null);
-    assert.equal(categoryReadAttempts, 5);
+    assert.equal(categoryReadAttempts, 7);
   });
 
   test('serves the read-only portfolio when cloud storage initialization fails', async t => {

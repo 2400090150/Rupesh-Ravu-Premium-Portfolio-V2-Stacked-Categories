@@ -113,7 +113,7 @@ async function initializeWithRetry(client, delay = milliseconds =>
       await initialize(client);
       return;
     } catch (error) {
-      if (!isTransientStorageError(error) || attempt >= 2) throw error;
+      if (!isTransientStorageError(error) || attempt >= 4) throw error;
       console.warn(`Portfolio storage initialization attempt ${attempt + 1} failed; retrying.`);
       await delay(200 * (attempt + 1));
     }
@@ -128,7 +128,7 @@ function createRetryingFetch(fetchImplementation = globalThis.fetch, delay = mil
     for (let attempt = 0; ; attempt++) {
       try {
         const response = await fetchImplementation(input, init);
-        if (retrySafe && attempt < 2 && (response.status === 429 || response.status >= 500)) {
+        if (retrySafe && attempt < 4 && (response.status === 429 || response.status >= 500)) {
           await response.body?.cancel();
           await delay(100 * (attempt + 1));
           continue;
