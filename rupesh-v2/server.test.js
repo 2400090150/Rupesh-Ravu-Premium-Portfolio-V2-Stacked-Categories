@@ -140,8 +140,45 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       sessionSecret: 'test-retry-session-secret-with-at-least-32-bytes'
     });
     await retryingApp.locals.ready;
-    assert.equal(categoryReadAttempts, 2);
+    assert.equal(categoryReadAttempts, 3);
     assert.equal(retryingApp.locals.storageError, null);
+  });
+
+  test('migrates the default product category title without replacing admin customizations', async t => {
+    const databaseClient = app.locals.databaseClient;
+    const renamed = await databaseClient.from('categories').update({ title: 'PRODUCT DESIGN' })
+      .eq('slug', 'product-design');
+    assert.equal(renamed.error, null);
+    const migratingApp = createApp({
+      database: getDatabase(),
+      sessionSecret: 'test-title-migration-session-secret-32-bytes'
+    });
+    await migratingApp.locals.ready;
+    const migratingServer = migratingApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => migratingServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      migratingServer.once('listening', resolve);
+      migratingServer.once('error', reject);
+    });
+    const baseUrl = `http://127.0.0.1:${migratingServer.address().port}`;
+    let response = await fetch(`${baseUrl}/api/categories/product-design/designs`);
+    assert.equal((await response.json()).category.title, 'FOOD & BAVERAGE');
+
+    await databaseClient.from('categories').update({ title: 'Custom product title' })
+      .eq('slug', 'product-design');
+    const customizedApp = createApp({
+      database: getDatabase(),
+      sessionSecret: 'test-custom-title-session-secret-32-bytes'
+    });
+    await customizedApp.locals.ready;
+    const customizedServer = customizedApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => customizedServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      customizedServer.once('listening', resolve);
+      customizedServer.once('error', reject);
+    });
+    response = await fetch(`http://127.0.0.1:${customizedServer.address().port}/api/categories/product-design/designs`);
+    assert.equal((await response.json()).category.title, 'Custom product title');
   });
 
   test('retries failed storage initialization on later requests', async t => {
@@ -176,7 +213,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(response.status, 200);
     assert.equal(session.storageConfigured, true);
     assert.equal(recoveringApp.locals.storageError, null);
-    assert.equal(categoryReadAttempts, 4);
+    assert.equal(categoryReadAttempts, 5);
   });
 
   test('serves the read-only portfolio when cloud storage initialization fails', async t => {

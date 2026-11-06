@@ -478,6 +478,8 @@ async function initialize(client) {
       ...category, visible: true, sort_order: CATEGORY_DEFINITIONS.indexOf(category)
     })), { onConflict: 'slug', ignoreDuplicates: true }));
   }
+  fail(await client.from('categories').update({ title: 'FOOD & BAVERAGE' })
+    .eq('slug', 'product-design').eq('title', 'PRODUCT DESIGN'));
   const existingSettings = new Set((await select(client, 'site_settings', 'key')).map(setting => setting.key));
   const missingSettings = Object.entries(DEFAULT_CONTENT)
     .filter(([key]) => !existingSettings.has(key))
