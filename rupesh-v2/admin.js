@@ -82,7 +82,12 @@ async function request(url, options = {}) {
     break;
   }
   if (!response.ok) {
-    const message = data.detail ? `${data.error || 'The request failed.'} ${data.detail}` : data.error;
+    const schemaDetail = `${data.code || ''} ${data.detail || ''}`;
+    const missingSectionsSchema = /PGRST20[45]/.test(schemaDetail) ||
+      /public\.internal_sections|designs\.section_id/i.test(schemaDetail);
+    const message = missingSectionsSchema
+      ? 'Supabase is missing the subsection database migration. Run supabase/migrations/20261106_internal_sections.sql in the SQL Editor for the Supabase project configured in Vercel, then reload this page.'
+      : data.detail ? `${data.error || 'The request failed.'} ${data.detail}` : data.error;
     const error = new Error(message || `Request failed (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;

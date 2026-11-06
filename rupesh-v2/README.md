@@ -42,6 +42,8 @@ The Vercel configuration serves this folder's static site and routes API request
 4. Before deploying, migrate existing Admin data and uploaded files from your local app. In PowerShell, set `$env:SUPABASE_URL` and `$env:SUPABASE_SERVICE_ROLE_KEY` to your private project values, then run `npm run migrate:supabase`.
 5. Deploy, then open `/admin` and complete the one-time setup with the configured `ADMIN_SETUP_TOKEN` only if no admin account was migrated.
 
+If the admin dashboard reports that `public.internal_sections` or `designs.section_id` is missing, run [`supabase/migrations/20261106_internal_sections.sql`](./supabase/migrations/20261106_internal_sections.sql) in the SQL Editor of the same Supabase project configured by Vercel's `SUPABASE_URL`, then reload `/admin`. This additive migration is safe to run more than once and refreshes the PostgREST schema cache.
+
 The `portfolio-assets` Supabase Storage bucket is created by the schema script and is public so portfolio images can load. Upload and metadata changes are stored in Supabase and survive function restarts and redeployments. The migration command copies existing portfolio records, Admin settings, credentials, and referenced uploads.
 
 Until Supabase credentials are configured, Vercel serves the original artwork and category marquees in read-only fallback mode. If configured storage cannot initialize, the public portfolio also falls back to this read-only mode instead of returning API errors; the admin page explains that storage is unavailable. Admin editing and uploaded files require a working Supabase schema, connection, and configuration.
