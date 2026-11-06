@@ -808,20 +808,34 @@ function createApp(options = {}) {
   app.locals.database = config.database;
   app.locals.databaseClient = client;
   app.locals.storageError = null;
-  app.locals.ready = initializeWithRetry(client).catch(error => {
-    app.locals.storageError = error;
-    if (storageFallback) console.error('Portfolio storage initialization failed:', error);
-  });
-  app.use((req, res, next) => app.locals.ready.then(() => {
-    if (app.locals.storageError) {
-      if (storageFallback && req.path.startsWith('/api/') &&
-          (req.method === 'GET' || req.path.startsWith('/api/admin/'))) {
-        return storageFallback(req, res, next);
+  let initialization;
+  const initializeStorage = () => {
+    if (initialization) return initialization;
+    initialization = initializeWithRetry(client).then(() => {
+      app.locals.storageError = null;
+    }).catch(error => {
+      app.locals.storageError = error;
+      if (storageFallback) console.error('Portfolio storage initialization failed:', error);
+    }).finally(() => {
+      initialization = null;
+    });
+    app.locals.ready = initialization;
+    return initialization;
+  };
+  app.locals.ready = initializeStorage();
+  app.use((req, res, next) => {
+    const ready = app.locals.storageError ? initializeStorage() : app.locals.ready;
+    return ready.then(() => {
+      if (app.locals.storageError) {
+        if (storageFallback && req.path.startsWith('/api/') &&
+            (req.method === 'GET' || req.path.startsWith('/api/admin/'))) {
+          return storageFallback(req, res, next);
+        }
+        return next(app.locals.storageError);
       }
-      return next(app.locals.storageError);
-    }
-    next();
-  }, next));
+      next();
+    }, next);
+  });
   app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE, files: 1 } });

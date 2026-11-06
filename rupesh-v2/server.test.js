@@ -119,6 +119,41 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(retryingApp.locals.storageError, null);
   });
 
+  test('retries failed storage initialization on later requests', async t => {
+    const databaseClient = app.locals.databaseClient;
+    let categoryReadAttempts = 0;
+    const recoveringClient = {
+      storage: databaseClient.storage,
+      from(table) {
+        if (table === 'categories' && categoryReadAttempts++ < 3) {
+          const result = { data: null, error: { message: 'fetch failed' } };
+          const query = { then: (resolve, reject) => Promise.resolve(result).then(resolve, reject) };
+          return { select: () => query };
+        }
+        return databaseClient.from(table);
+      }
+    };
+    const recoveringApp = createApp({
+      client: recoveringClient,
+      sessionSecret: 'test-later-retry-secret-with-at-least-32-bytes'
+    });
+    await recoveringApp.locals.ready;
+    assert.ok(recoveringApp.locals.storageError);
+
+    const recoveringServer = recoveringApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => recoveringServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      recoveringServer.once('listening', resolve);
+      recoveringServer.once('error', reject);
+    });
+    const response = await fetch(`http://127.0.0.1:${recoveringServer.address().port}/api/admin/session`);
+    const session = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(session.storageConfigured, true);
+    assert.equal(recoveringApp.locals.storageError, null);
+    assert.equal(categoryReadAttempts, 4);
+  });
+
   test('serves the read-only portfolio when cloud storage initialization fails', async t => {
     const result = { data: null, error: { message: 'Cloud storage is unavailable.' } };
     const query = {
