@@ -148,16 +148,11 @@ const SQLITE_SCHEMA = `
     slug TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL,
     visible INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS internal_sections (
-    id TEXT PRIMARY KEY, category_slug TEXT NOT NULL REFERENCES categories(slug) ON DELETE CASCADE,
-    title TEXT NOT NULL, position INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS designs (
     id TEXT PRIMARY KEY, category_slug TEXT NOT NULL REFERENCES categories(slug),
     title TEXT NOT NULL, description TEXT NOT NULL, image_url TEXT NOT NULL,
     position INTEGER NOT NULL, created_at TEXT NOT NULL,
-    display_background_color TEXT NOT NULL DEFAULT '#ffffff',
-    section_id TEXT REFERENCES internal_sections(id) ON DELETE SET NULL
+    display_background_color TEXT NOT NULL DEFAULT '#ffffff'
   );
   CREATE TABLE IF NOT EXISTS featured_designs (
     category_slug TEXT NOT NULL REFERENCES categories(slug) ON DELETE CASCADE,
@@ -186,7 +181,7 @@ const SQLITE_SCHEMA = `
 `;
 
 const SQLITE_TABLES = new Set([
-  'categories', 'internal_sections', 'designs', 'featured_designs', 'site_settings', 'admin_credentials',
+  'categories', 'designs', 'featured_designs', 'site_settings', 'admin_credentials',
   'certificates', 'tools', 'custom_home_sections'
 ]);
 const SQLITE_PRIMARY_KEYS = {
@@ -203,10 +198,6 @@ function getDatabase() {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   database = new DatabaseSync(databasePath);
   database.exec(SQLITE_SCHEMA);
-  const designColumns = database.prepare('PRAGMA table_info("designs")').all();
-  if (!designColumns.some(column => column.name === 'section_id')) {
-    database.exec('ALTER TABLE designs ADD COLUMN section_id TEXT REFERENCES internal_sections(id) ON DELETE SET NULL');
-  }
   return database;
 }
 
@@ -565,75 +556,18 @@ function designForApi(row, featured = false) {
   return {
     id: row.id, category: row.category_slug, title: row.title, description: row.description,
     image: row.image_url, displayBackgroundColor: row.display_background_color || '#ffffff',
-    position: row.position, createdAt: row.created_at, featured,
-    sectionId: row.section_id || null, sectionTitle: row.section_title || null
+    position: row.position, createdAt: row.created_at, featured
   };
 }
 
 async function getDesigns(client, category) {
-  const [designs, featured, sections] = await Promise.all([
+  const [designs, featured] = await Promise.all([
     select(client, 'designs', '*', query => query.eq('category_slug', category)
       .order('position').order('created_at').order('id')),
-    select(client, 'featured_designs', 'design_id', query => query.eq('category_slug', category)),
-    select(client, 'internal_sections', 'id,title', query => query.eq('category_slug', category))
+    select(client, 'featured_designs', 'design_id', query => query.eq('category_slug', category))
   ]);
   const featuredIds = new Set(featured.map(row => row.design_id));
-  const sectionTitles = new Map(sections.map(section => [section.id, section.title]));
-  return designs.map(row => designForApi({
-    ...row, section_title: sectionTitles.get(row.section_id) || null
-  }, featuredIds.has(row.id)));
-}
-
-async function getInternalSections(client, category, categoryDesigns = getDesigns(client, category)) {
-  const [sections, designs] = await Promise.all([
-    select(client, 'internal_sections', 'id,category_slug,title,position',
-      query => query.eq('category_slug', category).order('position').order('id')),
-    categoryDesigns
-  ]);
-  return sections.map(section => ({
-    id: section.id, category: section.category_slug, title: section.title, position: section.position,
-    designs: designs.filter(design => design.sectionId === section.id)
-  }));
-}
-
-async function getDesignLibrary(client, category) {
-  const [rows, featured, sections] = await Promise.all([
-    select(client, 'designs', '*', query => query.eq('category_slug', category)
-      .order('position').order('created_at').order('id')),
-    select(client, 'featured_designs', 'design_id', query => query.eq('category_slug', category)),
-    select(client, 'internal_sections', 'id,category_slug,title,position',
-      query => query.eq('category_slug', category).order('position').order('id'))
-  ]);
-  const featuredIds = new Set(featured.map(row => row.design_id));
-  const sectionTitles = new Map(sections.map(section => [section.id, section.title]));
-  const designs = rows.map(row => designForApi({
-    ...row, section_title: sectionTitles.get(row.section_id) || null
-  }, featuredIds.has(row.id)));
-  return {
-    designs,
-    sections: sections.map(section => ({
-      id: section.id, category: section.category_slug, title: section.title, position: section.position,
-      designs: designs.filter(design => design.sectionId === section.id)
-    }))
-  };
-}
-
-async function findSection(client, sectionId) {
-  return one(client, 'internal_sections', query => query.eq('id', sectionId));
-}
-
-function validateSectionTitle(value) {
-  return requireText(value, 'Subsection title', 80);
-}
-
-async function validateSectionForCategory(client, sectionId, category) {
-  if (sectionId === null || sectionId === undefined || sectionId === '') return null;
-  if (typeof sectionId !== 'string') throw createError(400, 'Choose a valid subsection.');
-  const section = await findSection(client, sectionId);
-  if (!section || section.category_slug !== category) {
-    throw createError(400, 'Choose a subsection within the selected design category.');
-  }
-  return section;
+  return designs.map(row => designForApi(row, featuredIds.has(row.id)));
 }
 
 function requireText(value, field, maxLength) {
@@ -869,7 +803,6 @@ function createApp(options = {}) {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE, files: 1 } });
-  const sectionImageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_IMAGE_SIZE, files: 20 } });
   const certificateUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_CERTIFICATE_SIZE, files: 1 } });
 
   function parseSession(req) {
@@ -954,12 +887,12 @@ function createApp(options = {}) {
 
   app.get('/api/categories/:slug/designs', route(async (req, res) => {
     if (!validCategory(req.params.slug)) throw createError(404, 'Design category not found.');
-    const [categories, library] = await Promise.all([
-      getCategories(client), getDesignLibrary(client, req.params.slug)
+    const [categories, designs] = await Promise.all([
+      getCategories(client), getDesigns(client, req.params.slug)
     ]);
     res.json({
       category: categories.find(item => item.slug === req.params.slug),
-      designs: library.designs, sections: library.sections
+      designs
     });
   }));
 
@@ -1030,93 +963,7 @@ function createApp(options = {}) {
   app.get('/api/admin/designs', adminOnly, route(async (req, res) => {
     const category = String(req.query.category || '');
     if (!validCategory(category)) throw createError(400, 'Choose one of the four design categories.');
-    res.json(await getDesignLibrary(client, category));
-  }));
-  app.post('/api/admin/sections', adminOnly, csrfOnly, route(async (req, res) => {
-    const category = requireText(req.body?.category, 'Category', 40);
-    if (!validCategory(category)) throw createError(400, 'Choose one of the four design categories.');
-    const title = validateSectionTitle(req.body?.title);
-    const existing = await select(client, 'internal_sections', 'position',
-      query => query.eq('category_slug', category));
-    const section = await insertOne(client, 'internal_sections', {
-      id: crypto.randomUUID(), category_slug: category, title,
-      position: existing.reduce((highest, item) => Math.max(highest, item.position), -1) + 1
-    });
-    res.status(201).json({ section: {
-      id: section.id, category: section.category_slug, title: section.title, position: section.position, designs: []
-    } });
-  }));
-  app.put('/api/admin/sections/:id', adminOnly, csrfOnly, route(async (req, res) => {
-    const section = await findSection(client, req.params.id);
-    if (!section) throw createError(404, 'Subsection not found.');
-    const title = validateSectionTitle(req.body?.title);
-    const updated = await updateOne(client, 'internal_sections', section.id, { title });
-    res.json({ section: {
-      id: updated.id, category: updated.category_slug, title: updated.title, position: updated.position
-    } });
-  }));
-  app.delete('/api/admin/sections/:id', adminOnly, csrfOnly, route(async (req, res) => {
-    const section = await findSection(client, req.params.id);
-    if (!section) throw createError(404, 'Subsection not found.');
-    fail(await client.from('internal_sections').delete().eq('id', section.id));
-    res.json({ deleted: true });
-  }));
-  app.put('/api/admin/section-order', adminOnly, csrfOnly, route(async (req, res) => {
-    const category = requireText(req.body?.category, 'Category', 40);
-    const ids = req.body?.ids;
-    if (!validCategory(category) || !Array.isArray(ids) ||
-        ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) {
-      throw createError(400, 'Provide a category and its ordered subsection IDs.');
-    }
-    const sections = await select(client, 'internal_sections', 'id',
-      query => query.eq('category_slug', category));
-    const currentIds = sections.map(section => section.id);
-    if (ids.length !== currentIds.length || ids.some(id => !currentIds.includes(id))) {
-      throw createError(400, 'The order must include every subsection exactly once.');
-    }
-    for (const [position, id] of ids.entries()) {
-      fail(await client.from('internal_sections').update({ position }).eq('id', id));
-    }
-    res.json({ sections: await getInternalSections(client, category) });
-  }));
-  app.post('/api/admin/sections/:id/designs', adminOnly, csrfOnly,
-    sectionImageUpload.array('images', 20), route(async (req, res) => {
-      const section = await findSection(client, req.params.id);
-      if (!section) throw createError(404, 'Subsection not found.');
-      const files = req.files || [];
-      if (!files.length) throw createError(400, 'Choose one or more design images to upload.');
-      const records = await select(client, 'designs', 'position',
-        query => query.eq('category_slug', section.category_slug));
-      let nextPosition = records.reduce((highest, item) => Math.max(highest, item.position), -1) + 1;
-      const assets = [];
-      try {
-        for (const file of files) assets.push(await storeAsset(client, file, 'design'));
-        const rows = assets.map((asset, index) => {
-          const sourceName = files[index].originalname.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
-          return {
-            id: crypto.randomUUID(), category_slug: section.category_slug, section_id: section.id,
-            title: sourceName.slice(0, 120) || 'Untitled design',
-            description: `${section.title} design.`, image_url: asset.url,
-            display_background_color: '#ffffff', position: nextPosition++, created_at: new Date().toISOString()
-          };
-        });
-        const inserted = fail(await client.from('designs').insert(rows).select('*'));
-        res.status(201).json({ designs: inserted.map(design => designForApi(design)) });
-      } catch (error) {
-        const storedFiles = assets.map(asset => asset.filename);
-        if (storedFiles.length) {
-          const removal = await client.storage.from(STORAGE_BUCKET).remove(storedFiles);
-          if (removal.error) console.error('Could not remove subsection upload after a failed save:', removal.error.message);
-        }
-        throw error;
-      }
-    }));
-  app.put('/api/admin/designs/:id/section', adminOnly, csrfOnly, route(async (req, res) => {
-    const design = await one(client, 'designs', query => query.eq('id', req.params.id));
-    if (!design) throw createError(404, 'Design not found.');
-    const section = await validateSectionForCategory(client, req.body?.sectionId, design.category_slug);
-    const updated = await updateOne(client, 'designs', design.id, { section_id: section?.id || null });
-    res.json({ design: designForApi(updated) });
+    res.json({ designs: await getDesigns(client, category) });
   }));
   app.get('/api/admin/certificates', adminOnly, route(async (req, res) =>
     res.json({ certificates: await orderedRecords(client, 'certificates') })));
@@ -1271,13 +1118,12 @@ function createApp(options = {}) {
     if (category === 'logo-designs' && !validHexColor(background)) {
       throw createError(400, 'Logo background must be a valid six-digit HEX color.');
     }
-    const section = await validateSectionForCategory(client, req.body?.sectionId, category);
     if (!req.file) throw createError(400, 'Choose an image to upload.');
     const asset = await storeAsset(client, req.file, 'design');
     try {
       const records = await select(client, 'designs', 'position', query => query.eq('category_slug', category));
       const design = await insertOne(client, 'designs', {
-        id: crypto.randomUUID(), category_slug: category, section_id: section?.id || null,
+        id: crypto.randomUUID(), category_slug: category,
         title, description, image_url: asset.url,
         display_background_color: category === 'logo-designs' ? background.toLowerCase() : '#ffffff',
         position: records.length, created_at: new Date().toISOString()
@@ -1300,9 +1146,6 @@ function createApp(options = {}) {
     if (category === 'logo-designs' && !validHexColor(background)) {
       throw createError(400, 'Logo background must be a valid six-digit HEX color.');
     }
-    const section = Object.hasOwn(req.body || {}, 'sectionId')
-      ? await validateSectionForCategory(client, req.body.sectionId, category)
-      : null;
     const oldCategory = await select(client, 'designs', 'id', query => query.eq('category_slug', design.category_slug));
     if (category !== design.category_slug && oldCategory.length <= 4) {
       throw createError(409, 'Add another design to this category before moving one out; each category needs at least four designs.');
@@ -1312,9 +1155,6 @@ function createApp(options = {}) {
     try {
       updated = await updateOne(client, 'designs', design.id, {
         category_slug: category,
-        section_id: category === design.category_slug
-          ? (Object.hasOwn(req.body || {}, 'sectionId') ? section?.id || null : design.section_id || null)
-          : section?.id || null,
         title, description, image_url: asset?.url || design.image_url,
         display_background_color: category === 'logo-designs' ? background.toLowerCase() : '#ffffff'
       });
@@ -1528,7 +1368,7 @@ function createVercelFallbackApp({ storageUnavailable = false } = {}) {
     if (!category) return res.status(404).json({ error: 'Design category not found.' });
     res.json({
       category: { ...category, designs: undefined },
-      designs: designs.filter(design => design.category === category.slug), sections: []
+      designs: designs.filter(design => design.category === category.slug)
     });
   });
   app.get('/api/admin/session', (req, res) => res.json({

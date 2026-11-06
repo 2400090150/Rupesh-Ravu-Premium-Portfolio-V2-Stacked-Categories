@@ -338,7 +338,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(validLogin.response.status, 200);
   });
 
-  await t.test('allows admin reads and subsection writes to recover after startup initialization fails', async t => {
+  await t.test('allows admin design reads to recover after startup initialization fails', async t => {
     const databaseClient = app.locals.databaseClient;
     const originalFrom = databaseClient.from.bind(databaseClient);
     let categoryReadAttempts = 0;
@@ -375,7 +375,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     });
     assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie').split(';')[0];
-    const { csrfToken: token } = await login.json();
+    await login.json();
 
     const designs = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
       headers: { cookie }
@@ -383,29 +383,22 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(designs.status, 200);
     assert.ok((await designs.json()).designs.length > 0);
 
-    const section = await fetch(`${baseUrl}/api/admin/sections`, {
-      method: 'POST',
-      headers: { cookie, 'x-csrf-token': token, 'content-type': 'application/json' },
-      body: JSON.stringify({ category: 'product-design', title: 'Recovery section' })
+    const sectionlessDesigns = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
+      headers: { cookie }
     });
-    assert.equal(section.status, 201);
-    assert.equal((await section.json()).section.title, 'Recovery section');
+    assert.equal(sectionlessDesigns.status, 200);
+    assert.ok((await sectionlessDesigns.json()).designs.length > 0);
   });
 
-  await t.test('shows a sanitized storage cause to authenticated admins instead of the generic fallback', async t => {
+  await t.test('admin and public design reads do not depend on subsection storage', async t => {
     const databaseClient = app.locals.databaseClient;
-    let failDesignReads = false;
+    let subsectionTableAccesses = 0;
     const diagnosticClient = {
       storage: databaseClient.storage,
       from(table) {
-        if (table === 'designs' && failDesignReads) {
-          const result = { data: null, error: { message: 'column designs.section_id does not exist', code: '42703' } };
-          const query = {
-            eq: () => query,
-            order: () => query,
-            then: (resolve, reject) => Promise.resolve(result).then(resolve, reject)
-          };
-          return { select: () => query };
+        if (table === 'internal_sections') {
+          subsectionTableAccesses++;
+          throw new Error('Subsection storage must not be queried.');
         }
         return databaseClient.from(table);
       }
@@ -416,7 +409,6 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       sessionSecret: 'test-storage-diagnostic-session-secret-32-bytes'
     });
     await diagnosticApp.locals.ready;
-    failDesignReads = true;
     const diagnosticServer = diagnosticApp.listen(0, '127.0.0.1');
     t.after(async () => new Promise(resolve => diagnosticServer.close(resolve)));
     await new Promise((resolve, reject) => {
@@ -431,14 +423,15 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     });
     assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie').split(';')[0];
-    const response = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
+    const adminRead = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
       headers: { cookie }
     });
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.equal(body.code, '42703');
-    assert.match(body.detail, /section_id does not exist/);
-    assert.doesNotMatch(JSON.stringify(body), /https?:\/\//);
+    assert.equal(adminRead.status, 200);
+    assert.ok((await adminRead.json()).designs.length > 0);
+    const publicRead = await fetch(`${baseUrl}/api/categories/product-design/designs`);
+    assert.equal(publicRead.status, 200);
+    assert.ok((await publicRead.json()).designs.length >= 4);
+    assert.equal(subsectionTableAccesses, 0);
   });
 
   await t.test('lets admins replace the shared header logo', async () => {
@@ -512,94 +505,18 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.deepEqual(reordered.data.designs.map(design => design.id), reversed);
   });
 
-  await t.test('manages category subsections, batch uploads, design assignments, ordering, and deletion', async () => {
+  await t.test('category archives display every category design without subsection grouping', async () => {
     for (const category of CATEGORY_DEFINITIONS) {
       const page = await fetch(`${baseUrl}/${category.slug}`);
       assert.equal(page.status, 200);
-      assert.match(await page.text(), /id="categorySections"/);
+      const html = await page.text();
+      assert.match(html, /id="categoryGallery"/);
+      assert.doesNotMatch(html, /categorySections|internalSection/i);
     }
-
-    const firstSection = await requestJson('/api/admin/sections', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: 'typography', title: 'Editorial studies' })
-    });
-    assert.equal(firstSection.response.status, 201, firstSection.data.error);
-    const secondSection = await requestJson('/api/admin/sections', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: 'typography', title: 'Poster lettering' })
-    });
-    assert.equal(secondSection.response.status, 201, secondSection.data.error);
-
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',
-      'base64'
-    );
-    const uploads = new FormData();
-    uploads.append('images', new Blob([png], { type: 'image/png' }), 'First Artwork.png');
-    uploads.append('images', new Blob([png], { type: 'image/png' }), 'Second Artwork.png');
-    const batch = await requestJson(`/api/admin/sections/${firstSection.data.section.id}/designs`, {
-      method: 'POST', body: uploads
-    });
-    assert.equal(batch.response.status, 201, batch.data.error);
-    assert.deepEqual(batch.data.designs.map(design => design.title), ['First Artwork', 'Second Artwork']);
-    assert.ok(batch.data.designs.every(design => design.sectionId === firstSection.data.section.id));
-
     const categoryPage = await requestJson('/api/categories/typography/designs');
     assert.equal(categoryPage.response.status, 200);
-    assert.equal(categoryPage.data.sections[0].title, 'Editorial studies');
-    assert.deepEqual(categoryPage.data.sections[0].designs.map(design => design.id),
-      batch.data.designs.map(design => design.id));
-
-    const existing = (await requestJson('/api/admin/designs?category=typography')).data.designs
-      .find(design => !design.sectionId);
-    const assignment = await requestJson(`/api/admin/designs/${existing.id}/section`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sectionId: secondSection.data.section.id })
-    });
-    assert.equal(assignment.response.status, 200, assignment.data.error);
-    assert.equal(assignment.data.design.sectionId, secondSection.data.section.id);
-
-    const rename = await requestJson(`/api/admin/sections/${firstSection.data.section.id}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Type experiments' })
-    });
-    assert.equal(rename.response.status, 200, rename.data.error);
-    const order = await requestJson('/api/admin/section-order', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        category: 'typography',
-        ids: [secondSection.data.section.id, firstSection.data.section.id]
-      })
-    });
-    assert.equal(order.response.status, 200, order.data.error);
-    assert.deepEqual(order.data.sections.map(section => section.title), ['Poster lettering', 'Type experiments']);
-
-    const otherCategorySection = await requestJson('/api/admin/sections', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: 'product-design', title: 'Packaging' })
-    });
-    assert.equal(otherCategorySection.response.status, 201, otherCategorySection.data.error);
-    const wrongCategory = await requestJson(`/api/admin/designs/${existing.id}/section`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sectionId: otherCategorySection.data.section.id })
-    });
-    assert.equal(wrongCategory.response.status, 400);
-
-    const removeSection = await requestJson(`/api/admin/sections/${firstSection.data.section.id}`, {
-      method: 'DELETE'
-    });
-    assert.equal(removeSection.response.status, 200, removeSection.data.error);
-    const afterDelete = await requestJson('/api/categories/typography/designs');
-    assert.ok(batch.data.designs.every(design =>
-      afterDelete.data.designs.find(item => item.id === design.id).sectionId === null));
-    assert.equal((await requestJson(batch.data.designs[0].image)).response.status, 200);
+    assert.ok(categoryPage.data.designs.length >= 4);
+    assert.equal(Object.hasOwn(categoryPage.data, 'sections'), false);
   });
 
   await t.test('uploads, edits, replaces, features, and deletes a design', async () => {

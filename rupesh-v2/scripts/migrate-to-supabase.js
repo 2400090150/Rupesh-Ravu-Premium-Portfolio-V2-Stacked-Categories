@@ -7,7 +7,6 @@ const ROOT = path.join(__dirname, '..');
 const BUCKET = 'portfolio-assets';
 const TABLES = [
   ['categories', 'slug'],
-  ['internal_sections', 'id'],
   ['site_settings', 'key'],
   ['admin_credentials', 'key'],
   ['designs', 'id'],
@@ -51,6 +50,11 @@ function localUploadFilename(url) {
 function normalizeRow(table, row) {
   if (['categories', 'tools', 'custom_home_sections'].includes(table)) {
     return { ...row, visible: Boolean(row.visible) };
+  }
+  if (table === 'designs') {
+    const design = { ...row };
+    delete design.section_id;
+    return design;
   }
   return row;
 }

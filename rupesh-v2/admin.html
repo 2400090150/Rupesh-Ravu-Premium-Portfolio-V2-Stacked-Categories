@@ -42,7 +42,6 @@
       <form id="designForm" class="admin-form">
         <input type="hidden" name="editingId">
         <label>Category<select name="category" id="designCategory" required></select></label>
-        <label>Subsection<select name="sectionId" id="designSection"><option value="">No subsection</option></select></label>
         <label>Design name<input name="title" maxlength="120" required></label>
         <label class="wide-field">Description<textarea name="description" rows="3" maxlength="2000" required></textarea></label>
         <label class="wide-field">Design image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label>
@@ -72,26 +71,6 @@
         <button id="saveDesignOrder" class="button button-secondary" type="button" disabled>Save design order</button>
       </div>
       <div id="designList" class="design-list"></div>
-      <div class="internal-section-manager">
-        <div class="custom-section-heading">
-          <div><p class="kicker">CATEGORY ORGANIZATION</p><h3>Internal subsections</h3></div>
-        </div>
-        <p class="form-help">Create and arrange subsections for this category. Changes are saved when you click Save.</p>
-        <form id="addInternalSectionForm" class="internal-section-add">
-          <label>New subsection title<input name="title" maxlength="80" required></label>
-          <button class="button" type="submit">Add subsection</button>
-        </form>
-        <div id="internalSectionList" class="internal-section-list"></div>
-        <div class="form-actions admin-list-actions">
-          <button id="saveInternalSectionOrder" class="button button-secondary" type="button" disabled>Save subsection order</button>
-        </div>
-        <form id="sectionDesignUploadForm" class="section-design-upload">
-          <label>Upload to subsection<select name="sectionId" id="uploadSection" required></select></label>
-          <label>Design images<input name="images" type="file" accept="image/png,image/jpeg,image/webp" multiple required></label>
-          <p class="form-help">Choose multiple PNG, JPG, or WebP images to add them to the selected subsection.</p>
-          <button class="button" type="submit">Upload designs</button>
-        </form>
-      </div>
     </section>
     <section class="admin-panel" id="certificateManager">
       <div class="panel-heading"><div><p class="kicker">02 / CERTIFICATE ARCHIVE</p><h2>Manage certificates</h2></div></div>

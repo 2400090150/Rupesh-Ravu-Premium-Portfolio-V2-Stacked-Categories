@@ -16,7 +16,7 @@ The server listens on `127.0.0.1` by default. To expose it on a server interface
 
 ## Design management
 
-The dashboard supports design uploads (PNG, JPEG, or WebP, up to 15 MB), names, descriptions, editing, image replacement, deletion, ordering, and one to four selected homepage designs in each category. Homepage selections and design ordering are published when their Save buttons are clicked. Admins can create, rename, delete, and order database-backed subsections in each category, assign designs to subsections, and upload up to 20 images at a time into a subsection. Category archive pages display designs grouped under their saved subsection titles; designs without a subsection remain visible in the category archive. Logo designs have an independent display background color, including a custom HEX value; this does not change the stored image.
+The dashboard supports design uploads (PNG, JPEG, or WebP, up to 15 MB), names, descriptions, editing, image replacement, deletion, ordering, and one to four selected homepage designs in each category. Homepage selections and design ordering are published when their Save buttons are clicked. Category archive pages display all designs in the category. Logo designs have an independent display background color, including a custom HEX value; this does not change the stored image.
 
 The same dashboard manages certificates as PDF, PNG, or JPG uploads (up to 25 MB) or secure HTTPS links, including descriptions, replacement, deletion, ordering, and the public archive at `/certificates`. Uploaded certificates can be downloaded; linked certificates open their external page. Tool and software logos can be uploaded as PNG, JPEG, WebP, or self-contained SVG (up to 15 MB), edited, ordered, and shown or hidden on the homepage. Uploaded files and management records are stored in the persistent uploads directory and SQLite database.
 
@@ -32,7 +32,7 @@ Deploy this application to a Node.js host with a persistent writable filesystem 
 
 The Vercel configuration serves this folder's static site and routes API requests to an Express function. Vercel's function filesystem is temporary, so configure Supabase before deploying to keep Admin edits and uploads persistent:
 
-1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor. The schema includes persistent category subsections and the optional design-to-subsection relationship.
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor.
 2. In Vercel, import the GitHub repository and set its **Root Directory** to `rupesh-v2`.
 3. Add these environment variables to the Vercel project for every deployment environment:
    - `SUPABASE_URL`: the Supabase project URL.
@@ -41,8 +41,6 @@ The Vercel configuration serves this folder's static site and routes API request
    - `ADMIN_SETUP_TOKEN`: a private one-time setup token.
 4. Before deploying, migrate existing Admin data and uploaded files from your local app. In PowerShell, set `$env:SUPABASE_URL` and `$env:SUPABASE_SERVICE_ROLE_KEY` to your private project values, then run `npm run migrate:supabase`.
 5. Deploy, then open `/admin` and complete the one-time setup with the configured `ADMIN_SETUP_TOKEN` only if no admin account was migrated.
-
-If the admin dashboard reports that `public.internal_sections` or `designs.section_id` is missing, run [`supabase/migrations/20261106_internal_sections.sql`](./supabase/migrations/20261106_internal_sections.sql) in the SQL Editor of the same Supabase project configured by Vercel's `SUPABASE_URL`, then reload `/admin`. This additive migration is safe to run more than once and refreshes the PostgREST schema cache.
 
 The `portfolio-assets` Supabase Storage bucket is created by the schema script and is public so portfolio images can load. Upload and metadata changes are stored in Supabase and survive function restarts and redeployments. The migration command copies existing portfolio records, Admin settings, credentials, and referenced uploads.
 

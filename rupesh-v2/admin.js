@@ -4,12 +4,8 @@ const loginForm = document.getElementById('loginForm');
 const dashboard = document.getElementById('dashboard');
 const designForm = document.getElementById('designForm');
 const designCategory = document.getElementById('designCategory');
-const designSection = document.getElementById('designSection');
 const libraryCategory = document.getElementById('libraryCategory');
 const designList = document.getElementById('designList');
-const internalSectionList = document.getElementById('internalSectionList');
-const saveInternalSectionOrderButton = document.getElementById('saveInternalSectionOrder');
-const uploadSection = document.getElementById('uploadSection');
 const featuredCount = document.getElementById('featuredCount');
 const saveFeaturedButton = document.getElementById('saveFeaturedSelection');
 const saveDesignOrderButton = document.getElementById('saveDesignOrder');
@@ -34,8 +30,6 @@ let csrfToken = '';
 let dashboardRecoveryAttempts = 0;
 let categories = [];
 let currentDesigns = [];
-let currentInternalSections = [];
-let savedInternalSectionOrder = [];
 let currentCertificates = [];
 let currentTools = [];
 let savedDesignOrder = [];
@@ -82,12 +76,7 @@ async function request(url, options = {}) {
     break;
   }
   if (!response.ok) {
-    const schemaDetail = `${data.code || ''} ${data.detail || ''}`;
-    const missingSectionsSchema = /PGRST20[45]/.test(schemaDetail) ||
-      /public\.internal_sections|designs\.section_id/i.test(schemaDetail);
-    const message = missingSectionsSchema
-      ? 'Supabase is missing the subsection database migration. Run supabase/migrations/20261106_internal_sections.sql in the SQL Editor for the Supabase project configured in Vercel, then reload this page.'
-      : data.detail ? `${data.error || 'The request failed.'} ${data.detail}` : data.error;
+    const message = data.detail ? `${data.error || 'The request failed.'} ${data.detail}` : data.error;
     const error = new Error(message || `Request failed (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;
@@ -399,35 +388,7 @@ function renderDesigns() {
     title.textContent = design.title;
     const description = document.createElement('p');
     description.textContent = design.description;
-    const assignment = document.createElement('div');
-    assignment.className = 'design-section-assignment';
-    const assignmentLabel = document.createElement('label');
-    assignmentLabel.textContent = 'Internal subsection';
-    const assignmentSelect = document.createElement('select');
-    assignmentSelect.setAttribute('aria-label', `Subsection for ${design.title}`);
-    const noSection = document.createElement('option');
-    noSection.value = '';
-    noSection.textContent = 'No subsection';
-    assignmentSelect.append(noSection);
-    currentInternalSections.forEach(section => {
-      const option = document.createElement('option');
-      option.value = section.id;
-      option.textContent = section.title;
-      assignmentSelect.append(option);
-    });
-    assignmentSelect.value = design.pendingSectionId ?? design.sectionId ?? '';
-    const saveAssignment = document.createElement('button');
-    saveAssignment.type = 'button';
-    saveAssignment.className = 'button button-secondary';
-    saveAssignment.textContent = 'Save subsection';
-    saveAssignment.disabled = assignmentSelect.value === (design.sectionId || '');
-    assignmentSelect.addEventListener('change', () => {
-      design.pendingSectionId = assignmentSelect.value;
-      saveAssignment.disabled = assignmentSelect.value === (design.sectionId || '');
-    });
-    saveAssignment.addEventListener('click', () => saveDesignSection(design, assignmentSelect, saveAssignment));
-    assignment.append(assignmentLabel, assignmentSelect, saveAssignment);
-    details.append(title, description, assignment);
+    details.append(title, description);
     const actions = document.createElement('div');
     actions.className = 'design-row-actions';
     const up = document.createElement('button');
@@ -462,181 +423,9 @@ async function loadDesigns(category = libraryCategory.value) {
   if (category !== libraryCategory.value) return;
   savedDesignCategory = category;
   currentDesigns = result.designs;
-  currentInternalSections = result.sections;
-  savedInternalSectionOrder = currentInternalSections.map(section => section.id);
   savedDesignOrder = currentDesigns.map(design => design.id);
   savedFeaturedIds = currentDesigns.filter(design => design.featured).map(design => design.id);
-  if (designCategory.value === libraryCategory.value) updateDesignSectionOptions(currentInternalSections,
-    designForm.elements.namedItem('editingId').value
-      ? designSection.value
-      : '');
-  renderInternalSections();
   renderDesigns();
-}
-
-function updateDesignSectionOptions(sections, selectedId = '') {
-  designSection.replaceChildren();
-  const noSection = document.createElement('option');
-  noSection.value = '';
-  noSection.textContent = 'No subsection';
-  designSection.append(noSection);
-  sections.forEach(section => {
-    const option = document.createElement('option');
-    option.value = section.id;
-    option.textContent = section.title;
-    designSection.append(option);
-  });
-  designSection.value = selectedId;
-}
-
-async function loadDesignSectionOptions(category, selectedId = '') {
-  const result = await request(`/api/admin/designs?category=${encodeURIComponent(category)}`);
-  updateDesignSectionOptions(result.sections, selectedId);
-}
-
-function updateSectionOrderButton() {
-  saveInternalSectionOrderButton.disabled = currentInternalSections.length === savedInternalSectionOrder.length &&
-    currentInternalSections.every((section, index) => section.id === savedInternalSectionOrder[index]);
-}
-
-function renderInternalSections() {
-  internalSectionList.replaceChildren();
-  const sectionOptions = currentInternalSections.map(section => {
-    const option = document.createElement('option');
-    option.value = section.id;
-    option.textContent = section.title;
-    return option;
-  });
-  uploadSection.replaceChildren(...sectionOptions.map(option => option.cloneNode(true)));
-  document.getElementById('sectionDesignUploadForm').hidden = currentInternalSections.length === 0;
-  currentInternalSections.forEach((section, index) => {
-    const row = document.createElement('article');
-    row.className = 'internal-section-row';
-    const titleLabel = document.createElement('label');
-    titleLabel.textContent = `Subsection ${String(index + 1).padStart(2, '0')}`;
-    const titleInput = document.createElement('input');
-    titleInput.value = section.pendingTitle ?? section.title;
-    titleInput.maxLength = 80;
-    titleInput.required = true;
-    titleLabel.append(titleInput);
-    const actions = document.createElement('div');
-    actions.className = 'internal-section-actions';
-    const saveTitle = document.createElement('button');
-    saveTitle.type = 'button';
-    saveTitle.className = 'button button-secondary';
-    saveTitle.textContent = 'Save title';
-    saveTitle.disabled = true;
-    titleInput.addEventListener('input', () => {
-      section.pendingTitle = titleInput.value;
-      saveTitle.disabled = titleInput.value.trim() === section.title;
-    });
-    saveTitle.addEventListener('click', () => saveInternalSectionTitle(section, titleInput, saveTitle));
-    const moveUp = assetAction('↑', () => moveInternalSection(index, -1), index === 0);
-    moveUp.setAttribute('aria-label', 'Move subsection up');
-    const moveDown = assetAction('↓', () => moveInternalSection(index, 1),
-      index === currentInternalSections.length - 1);
-    moveDown.setAttribute('aria-label', 'Move subsection down');
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'button button-secondary';
-    remove.textContent = 'Delete';
-    remove.addEventListener('click', () => deleteInternalSection(section));
-    actions.append(saveTitle, moveUp, moveDown, remove);
-    row.append(titleLabel, actions);
-    internalSectionList.append(row);
-  });
-  updateSectionOrderButton();
-}
-
-async function saveInternalSectionTitle(section, input, button) {
-  const title = input.value.trim();
-  if (!title) {
-    showStatus('Subsection title is required.', true);
-    return;
-  }
-  button.disabled = true;
-  try {
-    const result = await request(`/api/admin/sections/${encodeURIComponent(section.id)}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title })
-    });
-    section.title = result.section.title;
-    delete section.pendingTitle;
-    notifyPortfolioUpdated();
-    renderInternalSections();
-    renderDesigns();
-    showStatus('Subsection title saved.');
-  } catch (error) {
-    button.disabled = false;
-    showStatus(error.message, true);
-  }
-}
-
-function moveInternalSection(index, direction) {
-  const target = index + direction;
-  [currentInternalSections[index], currentInternalSections[target]] =
-    [currentInternalSections[target], currentInternalSections[index]];
-  renderInternalSections();
-}
-
-async function saveInternalSectionOrder() {
-  const ids = currentInternalSections.map(section => section.id);
-  saveInternalSectionOrderButton.disabled = true;
-  try {
-    await request('/api/admin/section-order', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category: libraryCategory.value, ids })
-    });
-    savedInternalSectionOrder = ids;
-    currentInternalSections.forEach((section, position) => { section.position = position; });
-    notifyPortfolioUpdated();
-    updateSectionOrderButton();
-    showStatus('Subsection order saved.');
-  } catch (error) {
-    updateSectionOrderButton();
-    showStatus(error.message, true);
-  }
-}
-
-async function deleteInternalSection(section) {
-  if (!window.confirm(`Delete "${section.title}"? Its designs will remain in this category without a subsection.`)) return;
-  try {
-    await request(`/api/admin/sections/${encodeURIComponent(section.id)}`, { method: 'DELETE' });
-    currentInternalSections = currentInternalSections.filter(item => item.id !== section.id);
-    savedInternalSectionOrder = savedInternalSectionOrder.filter(id => id !== section.id);
-    currentDesigns.forEach(design => {
-      if (design.sectionId === section.id) design.sectionId = null;
-      if (design.pendingSectionId === section.id) delete design.pendingSectionId;
-    });
-    renderInternalSections();
-    renderDesigns();
-    notifyPortfolioUpdated();
-    showStatus('Subsection deleted. Its designs remain available in the category.');
-  } catch (error) {
-    showStatus(error.message, true);
-  }
-}
-
-async function saveDesignSection(design, select, button) {
-  const sectionId = select.value || null;
-  button.disabled = true;
-  try {
-    const result = await request(`/api/admin/designs/${encodeURIComponent(design.id)}/section`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sectionId })
-    });
-    design.sectionId = result.design.sectionId;
-    design.sectionTitle = currentInternalSections.find(section => section.id === design.sectionId)?.title || null;
-    delete design.pendingSectionId;
-    notifyPortfolioUpdated();
-    showStatus('Design subsection assignment saved.');
-  } catch (error) {
-    button.disabled = false;
-    showStatus(error.message, true);
-  }
 }
 
 function moveDesign(index, direction) {
@@ -667,7 +456,6 @@ async function saveDesignOrder() {
 async function editDesign(design) {
   designForm.elements.namedItem('editingId').value = design.id;
   designCategory.value = design.category;
-  await loadDesignSectionOptions(design.category, design.sectionId || '');
   designForm.elements.namedItem('title').value = design.title;
   designForm.elements.namedItem('description').value = design.description;
   const designBackgroundColor = design.displayBackgroundColor || '#ffffff';
@@ -1078,75 +866,8 @@ loginForm.addEventListener('submit', async event => {
 });
 
 function hasUnsavedCategoryChanges() {
-  const sectionTitlesChanged = currentInternalSections.some((section, index) =>
-    internalSectionList.querySelectorAll('input')[index]?.value.trim() !== section.title);
-  const assignmentsChanged = currentDesigns.some(design =>
-    design.pendingSectionId !== undefined && design.pendingSectionId !== (design.sectionId || ''));
-  return !saveFeaturedButton.disabled || !saveDesignOrderButton.disabled ||
-    !saveInternalSectionOrderButton.disabled || sectionTitlesChanged || assignmentsChanged;
+  return !saveFeaturedButton.disabled || !saveDesignOrderButton.disabled;
 }
-
-document.getElementById('addInternalSectionForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const title = String(new FormData(form).get('title') || '').trim();
-  if (!title) {
-    showStatus('Subsection title is required.', true);
-    return;
-  }
-  const category = libraryCategory.value;
-  const submitButton = form.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
-  try {
-    const result = await request('/api/admin/sections', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category, title })
-    });
-    if (libraryCategory.value === category) {
-      currentInternalSections.push(result.section);
-      savedInternalSectionOrder.push(result.section.id);
-      renderInternalSections();
-      if (designCategory.value === category) {
-        updateDesignSectionOptions(currentInternalSections, designSection.value);
-      }
-    }
-    form.reset();
-    notifyPortfolioUpdated();
-    showStatus('Subsection added.');
-  } catch (error) {
-    showStatus(error.message, true);
-  } finally {
-    submitButton.disabled = false;
-  }
-});
-
-document.getElementById('sectionDesignUploadForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const sectionId = uploadSection.value;
-  const files = form.elements.namedItem('images').files;
-  if (!sectionId || !files.length) {
-    showStatus('Choose a subsection and one or more design images.', true);
-    return;
-  }
-  if (hasUnsavedCategoryChanges() &&
-      !window.confirm('Upload designs and discard the unsaved category changes?')) return;
-  try {
-    const result = await request(`/api/admin/sections/${encodeURIComponent(sectionId)}/designs`, {
-      method: 'POST',
-      body: new FormData(form)
-    });
-    form.reset();
-    notifyPortfolioUpdated();
-    await loadDesigns();
-    showStatus(`${result.designs.length} design${result.designs.length === 1 ? '' : 's'} uploaded to the subsection.`);
-  } catch (error) {
-    showStatus(error.message, true);
-  }
-});
-
-saveInternalSectionOrderButton.addEventListener('click', saveInternalSectionOrder);
 
 designForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -1175,9 +896,6 @@ designForm.addEventListener('submit', async event => {
 document.getElementById('cancelEdit').addEventListener('click', resetDesignForm);
 saveFeaturedButton.addEventListener('click', saveFeaturedSelection);
 saveDesignOrderButton.addEventListener('click', saveDesignOrder);
-designCategory.addEventListener('change', () => {
-  loadDesignSectionOptions(designCategory.value).catch(error => showStatus(error.message, true));
-});
 libraryCategory.addEventListener('change', () => {
   if (hasUnsavedCategoryChanges() && !window.confirm('Discard unsaved changes for this category?')) {
     libraryCategory.value = savedDesignCategory;
