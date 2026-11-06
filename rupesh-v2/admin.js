@@ -82,7 +82,8 @@ async function request(url, options = {}) {
     break;
   }
   if (!response.ok) {
-    const error = new Error(data.error || `Request failed (HTTP ${response.status}).`);
+    const message = data.detail ? `${data.error || 'The request failed.'} ${data.detail}` : data.error;
+    const error = new Error(message || `Request failed (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;
   }

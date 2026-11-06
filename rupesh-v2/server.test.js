@@ -392,6 +392,55 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal((await section.json()).section.title, 'Recovery section');
   });
 
+  await t.test('shows a sanitized storage cause to authenticated admins instead of the generic fallback', async t => {
+    const databaseClient = app.locals.databaseClient;
+    let failDesignReads = false;
+    const diagnosticClient = {
+      storage: databaseClient.storage,
+      from(table) {
+        if (table === 'designs' && failDesignReads) {
+          const result = { data: null, error: { message: 'column designs.section_id does not exist', code: '42703' } };
+          const query = {
+            eq: () => query,
+            order: () => query,
+            then: (resolve, reject) => Promise.resolve(result).then(resolve, reject)
+          };
+          return { select: () => query };
+        }
+        return databaseClient.from(table);
+      }
+    };
+    const diagnosticApp = createApp({
+      client: diagnosticClient,
+      storageFallback: createVercelFallbackApp({ storageUnavailable: true }),
+      sessionSecret: 'test-storage-diagnostic-session-secret-32-bytes'
+    });
+    await diagnosticApp.locals.ready;
+    failDesignReads = true;
+    const diagnosticServer = diagnosticApp.listen(0, '127.0.0.1');
+    t.after(async () => new Promise(resolve => diagnosticServer.close(resolve)));
+    await new Promise((resolve, reject) => {
+      diagnosticServer.once('listening', resolve);
+      diagnosticServer.once('error', reject);
+    });
+    const baseUrl = `http://127.0.0.1:${diagnosticServer.address().port}`;
+    const login = await fetch(`${baseUrl}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ravu.fx@gmail.com', password: 'a-strong-password-123' })
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const response = await fetch(`${baseUrl}/api/admin/designs?category=product-design`, {
+      headers: { cookie }
+    });
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.equal(body.code, '42703');
+    assert.match(body.detail, /section_id does not exist/);
+    assert.doesNotMatch(JSON.stringify(body), /https?:\/\//);
+  });
+
   await t.test('lets admins replace the shared header logo', async () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',

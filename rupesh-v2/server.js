@@ -1473,6 +1473,18 @@ function createApp(options = {}) {
         ? 'Images must be 15 MB or smaller.' : 'The image upload could not be accepted.' });
     }
     const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status >= 500 && storageFallback && req.path.startsWith('/api/admin/') && parseSession(req)) {
+      console.error('Authenticated admin storage request failed:', error);
+      const detail = String(error.message || '')
+        .replace(/https?:\/\/\S+/gi, '[redacted URL]')
+        .replace(/[\r\n]+/g, ' ')
+        .slice(0, 240);
+      return res.status(status).json({
+        error: 'The admin request could not access persistent storage.',
+        code: error.code || null,
+        detail
+      });
+    }
     if (status >= 500 && storageFallback && req.path.startsWith('/api/')) {
       console.error('Cloud storage request failed; serving the read-only portfolio fallback:', error);
       return storageFallback(req, res, next);
