@@ -81,6 +81,9 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.match(experiencePage, /SAMYAK 2026/);
     assert.match(experiencePage, /Designing Chief/);
     assert.match(experiencePage, /SURABHI 2025/);
+    assert.match(experiencePage, /Celeb Sync/);
+    assert.match(experiencePage, /20\+ creative pieces/);
+    assert.match(experiencePage, /Designed a brochure/);
     assert.match(experiencePage, /Jignasa Artverse/);
     assert.match(experiencePage, /Ratha Yatra 2025/);
     assert.match(experiencePage, /experience-responsibilities/);
