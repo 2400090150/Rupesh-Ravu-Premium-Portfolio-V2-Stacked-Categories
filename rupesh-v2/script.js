@@ -307,6 +307,18 @@ if ('BroadcastChannel' in window) {
   });
 }
 
+let lastPortfolioResumeRefresh = 0;
+function refreshPortfolioOnResume() {
+  if (document.visibilityState !== 'visible' || Date.now() - lastPortfolioResumeRefresh < 1000) return;
+  lastPortfolioResumeRefresh = Date.now();
+  loadPortfolio().catch(error => {
+    console.error(error);
+    showPortfolioError(`${error.message} Please refresh or contact the site administrator.`);
+  });
+}
+window.addEventListener('focus', refreshPortfolioOnResume);
+document.addEventListener('visibilitychange', refreshPortfolioOnResume);
+
 loadPortfolio().catch(error => {
   console.error(error);
   showPortfolioError(`${error.message} Please refresh or contact the site administrator.`);

@@ -88,6 +88,18 @@ portfolioUpdateChannel?.addEventListener('message', event => {
   });
 });
 
+let lastCategoryResumeRefresh = 0;
+function refreshCategoryOnResume() {
+  if (document.visibilityState !== 'visible' || Date.now() - lastCategoryResumeRefresh < 1000) return;
+  lastCategoryResumeRefresh = Date.now();
+  loadCategory().catch(error => {
+    console.error(error);
+    showCategoryError(`${error.message} Please refresh or contact the site administrator.`);
+  });
+}
+window.addEventListener('focus', refreshCategoryOnResume);
+document.addEventListener('visibilitychange', refreshCategoryOnResume);
+
 document.getElementById('close').addEventListener('click', () => modal.classList.remove('open'));
 modal.addEventListener('click', event => {
   if (event.target === modal) modal.classList.remove('open');

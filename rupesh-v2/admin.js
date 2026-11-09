@@ -648,6 +648,7 @@ async function deleteCertificate(certificate) {
   if (!window.confirm(`Delete "${certificate.title}"? This cannot be undone.`)) return;
   try {
     await request(`/api/admin/certificates/${encodeURIComponent(certificate.id)}`, { method: 'DELETE' });
+    notifyPortfolioUpdated();
     await loadCertificates();
     showStatus(`"${certificate.title}" was deleted.`);
   } catch (error) {
@@ -887,7 +888,7 @@ designForm.addEventListener('submit', async event => {
     resetDesignForm();
     libraryCategory.value = category;
     await loadDesigns();
-    showStatus(editingId ? 'Design details updated.' : 'Design uploaded.');
+    showStatus(editingId ? 'Design details updated.' : 'Design uploaded and added to the homepage.');
   } catch (error) {
     showStatus(error.message, true);
   }
@@ -923,6 +924,7 @@ certificateForm.addEventListener('submit', async event => {
     await request(editingId
       ? `/api/admin/certificates/${encodeURIComponent(editingId)}`
       : '/api/admin/certificates', { method: editingId ? 'PUT' : 'POST', body });
+    notifyPortfolioUpdated();
     resetCertificateForm();
     await loadCertificates();
     showStatus(editingId ? 'Certificate details updated.' : 'Certificate uploaded.');

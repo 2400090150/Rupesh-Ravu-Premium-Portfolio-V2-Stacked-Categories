@@ -36,9 +36,10 @@
     </form>
   </section>
   <div id="dashboard" hidden>
-    <div class="admin-toolbar"><p>Changes are published when you click the corresponding Save button.</p><button id="logoutButton" class="button button-secondary" type="button">Sign out</button></div>
+    <div class="admin-toolbar"><p>New designs appear on the homepage as soon as they are uploaded. For other changes, click the corresponding Save button.</p><button id="logoutButton" class="button button-secondary" type="button">Sign out</button></div>
     <section class="admin-panel">
       <div class="panel-heading"><div><p class="kicker">01 / DESIGN LIBRARY</p><h2>Manage designs</h2></div></div>
+      <p class="form-help">New designs are added to the homepage automatically. If all four featured slots are in use, the newest upload replaces the last slot. Use the selection below to choose a different set.</p>
       <form id="designForm" class="admin-form">
         <input type="hidden" name="editingId">
         <label>Category<select name="category" id="designCategory" required></select></label>

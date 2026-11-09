@@ -75,3 +75,16 @@ loadCertificates().catch(error => {
   statusMessage.textContent = `${error.message} Please refresh or contact the site administrator.`;
   statusMessage.hidden = false;
 });
+
+let lastCertificatesResumeRefresh = 0;
+function refreshCertificatesOnResume() {
+  if (document.visibilityState !== 'visible' || Date.now() - lastCertificatesResumeRefresh < 1000) return;
+  lastCertificatesResumeRefresh = Date.now();
+  loadCertificates().catch(error => {
+    console.error(error);
+    statusMessage.textContent = `${error.message} Please refresh or contact the site administrator.`;
+    statusMessage.hidden = false;
+  });
+}
+window.addEventListener('focus', refreshCertificatesOnResume);
+document.addEventListener('visibilitychange', refreshCertificatesOnResume);

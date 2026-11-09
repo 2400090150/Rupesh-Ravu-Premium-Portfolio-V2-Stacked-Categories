@@ -1120,16 +1120,29 @@ function createApp(options = {}) {
     }
     if (!req.file) throw createError(400, 'Choose an image to upload.');
     const asset = await storeAsset(client, req.file, 'design');
+    let design;
     try {
       const records = await select(client, 'designs', 'position', query => query.eq('category_slug', category));
-      const design = await insertOne(client, 'designs', {
+      design = await insertOne(client, 'designs', {
         id: crypto.randomUUID(), category_slug: category,
         title, description, image_url: asset.url,
         display_background_color: category === 'logo-designs' ? background.toLowerCase() : '#ffffff',
         position: records.length, created_at: new Date().toISOString()
       });
+      const featured = await select(client, 'featured_designs', 'design_id,position',
+        query => query.eq('category_slug', category).order('position'));
+      if (featured.length < 4) {
+        fail(await client.from('featured_designs').insert({
+          category_slug: category, design_id: design.id, position: featured.length
+        }));
+      } else {
+        const lastFeatured = featured[3];
+        fail(await client.from('featured_designs').update({ design_id: design.id })
+          .eq('category_slug', category).eq('position', lastFeatured.position));
+      }
       res.status(201).json({ design });
     } catch (error) {
+      if (design) fail(await client.from('designs').delete().eq('id', design.id));
       await client.storage.from(STORAGE_BUCKET).remove([asset.filename]);
       throw error;
     }

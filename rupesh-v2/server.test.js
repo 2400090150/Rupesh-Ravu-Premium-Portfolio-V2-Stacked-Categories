@@ -556,6 +556,12 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const firstImage = created.data.design.image_url;
     assert.match(firstImage, /^\/uploads\/[a-f0-9-]+\.png$/);
     assert.equal((await requestJson(firstImage)).response.status, 200);
+    const uploadHomepage = await requestJson('/api/portfolio');
+    const uploadFeatured = uploadHomepage.data.categories.find(category => category.slug === 'marketing-branding').designs;
+    assert.equal(uploadFeatured.at(-1).id, id, 'new uploads should replace the last homepage slot immediately');
+    assert.equal(uploadFeatured.length, 4);
+    const uploadArchive = await requestJson('/api/categories/marketing-branding/designs');
+    assert.ok(uploadArchive.data.designs.some(design => design.id === id), 'new uploads should appear in the full category archive');
 
     const update = new FormData();
     update.set('category', 'marketing-branding');
