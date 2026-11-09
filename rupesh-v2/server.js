@@ -1292,6 +1292,7 @@ function createApp(options = {}) {
   app.get('/about', (req, res) => res.sendFile(path.join(ROOT, 'about.html')));
   app.get('/contact', (req, res) => res.sendFile(path.join(ROOT, 'contact.html')));
   app.get('/certificates', (req, res) => res.sendFile(path.join(ROOT, 'certificates.html')));
+  app.get('/experiences', (req, res) => res.sendFile(path.join(ROOT, 'experiences.html')));
   app.get('/:slug', (req, res, next) => {
     if (!validCategory(req.params.slug)) return next();
     res.sendFile(path.join(ROOT, 'category.html'));
@@ -1385,6 +1386,7 @@ function createVercelFallbackApp({ storageUnavailable = false } = {}) {
   app.get('/about', (req, res) => res.sendFile(path.join(ROOT, 'about.html')));
   app.get('/contact', (req, res) => res.sendFile(path.join(ROOT, 'contact.html')));
   app.get('/certificates', (req, res) => res.sendFile(path.join(ROOT, 'certificates.html')));
+  app.get('/experiences', (req, res) => res.sendFile(path.join(ROOT, 'experiences.html')));
   app.get('/:slug', (req, res, next) => {
     if (!validCategory(req.params.slug)) return next();
     res.sendFile(path.join(ROOT, 'category.html'));

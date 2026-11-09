@@ -72,6 +72,12 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const logoArchive = await fetch(`${baseUrl}/logo-designs`);
     assert.equal(logoArchive.status, 200);
     assert.match(await logoArchive.text(), /categoryGallery/);
+    const home = await fetch(baseUrl);
+    assert.equal(home.status, 200);
+    assert.match(await home.text(), /href="\/experiences">Experience/);
+    const experiences = await fetch(`${baseUrl}/experiences`);
+    assert.equal(experiences.status, 200);
+    assert.match(await experiences.text(), /SAMYAK 2025/);
     assert.equal((await requestJson('/server.js')).response.status, 404);
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
   });

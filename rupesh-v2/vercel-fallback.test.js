@@ -54,4 +54,8 @@ test('read-only fallback serves category archives and explains disabled admin ed
   const dashboard = await fetch(`${baseUrl}/admin`);
   assert.equal(dashboard.status, 200);
   assert.match(await dashboard.text(), /PERSISTENT STORAGE REQUIRED/);
+
+  const experiences = await fetch(`${baseUrl}/experiences`);
+  assert.equal(experiences.status, 200);
+  assert.match(await experiences.text(), /Designing Coordinator/);
 });

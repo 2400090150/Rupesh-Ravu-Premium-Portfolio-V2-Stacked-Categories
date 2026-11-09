@@ -56,6 +56,10 @@
       "dest": "/certificates.html"
     },
     {
+      "src": "/experiences",
+      "dest": "/experiences.html"
+    },
+    {
       "src": "/(logo-designs|product-design|marketing-branding|typography)",
       "dest": "/category.html"
     },
