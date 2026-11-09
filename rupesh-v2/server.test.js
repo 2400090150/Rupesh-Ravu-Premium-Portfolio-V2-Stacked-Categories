@@ -77,7 +77,13 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.match(await home.text(), /href="\/experiences">Experience/);
     const experiences = await fetch(`${baseUrl}/experiences`);
     assert.equal(experiences.status, 200);
-    assert.match(await experiences.text(), /SAMYAK 2025/);
+    const experiencePage = await experiences.text();
+    assert.match(experiencePage, /SAMYAK 2026/);
+    assert.match(experiencePage, /Designing Chief/);
+    assert.match(experiencePage, /SURABHI 2025/);
+    assert.match(experiencePage, /Jignasa Artverse/);
+    assert.match(experiencePage, /Ratha Yatra 2025/);
+    assert.doesNotMatch(experiencePage, /The Journey Behind My Designs/);
     assert.equal((await requestJson('/server.js')).response.status, 404);
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
   });
