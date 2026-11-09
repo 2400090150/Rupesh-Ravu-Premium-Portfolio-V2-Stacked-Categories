@@ -83,6 +83,8 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.match(experiencePage, /SURABHI 2025/);
     assert.match(experiencePage, /Jignasa Artverse/);
     assert.match(experiencePage, /Ratha Yatra 2025/);
+    assert.match(experiencePage, /experience-responsibilities/);
+    assert.match(experiencePage, /June 15–July 1, 2025/);
     assert.doesNotMatch(experiencePage, /The Journey Behind My Designs/);
     assert.equal((await requestJson('/server.js')).response.status, 404);
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
