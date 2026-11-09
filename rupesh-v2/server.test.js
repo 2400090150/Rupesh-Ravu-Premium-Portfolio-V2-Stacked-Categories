@@ -88,6 +88,10 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.match(experiencePage, /Ratha Yatra 2025/);
     assert.match(experiencePage, /experience-responsibilities/);
     assert.match(experiencePage, /June 15–July 1, 2025/);
+    assert.match(experiencePage, /\/assets\/experience-stage\.png/);
+    const experiencePhoto = await fetch(`${baseUrl}/assets/experience-stage.png`);
+    assert.equal(experiencePhoto.status, 200);
+    assert.match(experiencePhoto.headers.get('content-type'), /image\/png/);
     assert.doesNotMatch(experiencePage, /The Journey Behind My Designs/);
     assert.equal((await requestJson('/server.js')).response.status, 404);
     assert.equal((await requestJson('/api/categories/not-a-category/designs')).response.status, 404);
