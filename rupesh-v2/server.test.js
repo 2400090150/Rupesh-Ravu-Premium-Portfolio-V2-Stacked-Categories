@@ -714,12 +714,26 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal((await requestJson(originalImage)).response.status, 404);
   });
 
-  await t.test('manages certificate uploads, replacement, public downloads, and ordering', async () => {
+  await t.test('manages certificate uploads, replacement, public downloads, and ordering', async t => {
     const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n');
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r3sAAAAASUVORK5CYII=',
       'base64'
     );
+    const storage = app.locals.databaseClient.storage;
+    const storageFrom = storage.from.bind(storage);
+    const uploadContentTypes = [];
+    storage.from = bucket => {
+      const bucketClient = storageFrom(bucket);
+      return {
+        ...bucketClient,
+        upload: async (...args) => {
+          uploadContentTypes.push(args[2]?.contentType);
+          return bucketClient.upload(...args);
+        }
+      };
+    };
+    t.after(() => { storage.from = storageFrom; });
     const firstUpload = new FormData();
     firstUpload.set('title', 'Portfolio Certificate');
     firstUpload.set('description', 'A PDF certificate.');
@@ -785,6 +799,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(updated.response.status, 200, updated.data.error);
     assert.equal(updated.data.certificate.fileType, 'png');
     assert.equal(updated.data.certificate.title, 'Portfolio Certificate Updated');
+    assert.deepEqual(uploadContentTypes, ['application/pdf', 'image/png', 'image/png']);
     assert.equal((await requestJson(first.data.certificate.file)).response.status, 404);
 
     const reorderedIds = [second.data.certificate.id, first.data.certificate.id, linked.data.certificate.id];

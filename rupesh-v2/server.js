@@ -631,15 +631,21 @@ function inspectUpload(file, kind) {
   if (!file) return null;
   const imageExtension = sniffImage(file.buffer);
   if (kind === 'certificate') {
-    if (imageExtension === '.png' || imageExtension === '.jpg') return { extension: imageExtension, type: imageExtension.slice(1) };
-    if (file.buffer.length >= 8 && file.buffer.toString('ascii', 0, 5) === '%PDF-') return { extension: '.pdf', type: 'pdf' };
+    if (imageExtension === '.png') return { extension: imageExtension, type: 'png', contentType: 'image/png' };
+    if (imageExtension === '.jpg') return { extension: imageExtension, type: 'jpg', contentType: 'image/jpeg' };
+    if (file.buffer.length >= 8 && file.buffer.toString('ascii', 0, 5) === '%PDF-') {
+      return { extension: '.pdf', type: 'pdf', contentType: 'application/pdf' };
+    }
     throw createError(415, 'Certificates must be genuine PDF, PNG, or JPG files.');
   }
-  if (imageExtension) return { extension: imageExtension, type: imageExtension === '.jpg' ? 'image/jpeg' : `image/${imageExtension.slice(1)}` };
+  if (imageExtension) {
+    const contentType = imageExtension === '.jpg' ? 'image/jpeg' : `image/${imageExtension.slice(1)}`;
+    return { extension: imageExtension, type: contentType, contentType };
+  }
   if (kind === 'tool' && file.buffer.length <= MAX_IMAGE_SIZE &&
       /^\s*(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)/i.test(file.buffer.toString('utf8', 0, Math.min(file.buffer.length, 2048)))) {
     sanitizeSvg(file.buffer);
-    return { extension: '.svg', type: 'image/svg+xml' };
+    return { extension: '.svg', type: 'image/svg+xml', contentType: 'image/svg+xml' };
   }
   if (kind === 'certificate') throw createError(415, 'Certificates must be genuine PDF, PNG, or JPG files.');
   throw createError(415, kind === 'tool'
@@ -652,7 +658,7 @@ async function storeAsset(client, file, kind) {
   const info = inspectUpload(file, kind);
   const filename = `${crypto.randomUUID()}${info.extension}`;
   const result = await client.storage.from(STORAGE_BUCKET).upload(filename, file.buffer, {
-    contentType: info.type, cacheControl: '31536000', upsert: false
+    contentType: info.contentType, cacheControl: '31536000', upsert: false
   });
   if (result.error) fail(result);
   const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
