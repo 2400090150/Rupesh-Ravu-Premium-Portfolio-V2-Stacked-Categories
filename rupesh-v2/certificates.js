@@ -1,5 +1,54 @@
 const gallery = document.getElementById('certificatesGallery');
 const statusMessage = document.getElementById('certificatesStatus');
+const certificateDialog = document.getElementById('certificateDialog');
+const certificateDialogTitle = document.getElementById('certificateDialogTitle');
+const certificateDialogDescription = document.getElementById('certificateDialogDescription');
+const certificateDialogDocument = document.getElementById('certificateDialogDocument');
+const certificateDialogActions = document.getElementById('certificateDialogActions');
+
+function openCertificate(certificate) {
+  certificateDialogTitle.textContent = certificate.title;
+  certificateDialogDescription.textContent = certificate.description;
+  certificateDialogDescription.hidden = !certificate.description;
+  certificateDialogDocument.replaceChildren();
+  certificateDialogActions.replaceChildren();
+
+  if (certificate.fileType === 'link') {
+    const onlineLink = document.createElement('a');
+    onlineLink.href = certificate.file;
+    onlineLink.target = '_blank';
+    onlineLink.rel = 'noopener noreferrer';
+    onlineLink.textContent = 'Open certificate online ↗';
+    certificateDialogActions.append(onlineLink);
+  } else {
+    if (certificate.fileType === 'pdf') {
+      const pdf = document.createElement('iframe');
+      pdf.src = certificate.file;
+      pdf.title = certificate.title;
+      certificateDialogDocument.append(pdf);
+    } else {
+      const image = document.createElement('img');
+      image.src = certificate.file;
+      image.alt = certificate.title;
+      certificateDialogDocument.append(image);
+    }
+
+    const download = document.createElement('a');
+    download.href = `${certificate.file}?download=1`;
+    download.setAttribute('download', '');
+    download.textContent = 'Download certificate ↗';
+    certificateDialogActions.append(download);
+  }
+  certificateDialog.showModal();
+}
+
+document.getElementById('closeCertificateDialog').addEventListener('click', () => certificateDialog.close());
+certificateDialog.addEventListener('click', event => {
+  if (event.target === certificateDialog) certificateDialog.close();
+});
+certificateDialog.addEventListener('close', () => {
+  certificateDialogDocument.replaceChildren();
+});
 
 async function loadCertificates() {
   const response = await fetch('/api/certificates', { cache: 'no-store' });
@@ -16,56 +65,38 @@ async function loadCertificates() {
   gallery.replaceChildren(...certificates.map(certificate => {
     const card = document.createElement('article');
     card.className = 'certificate-card';
-    const previewLink = document.createElement('a');
-    previewLink.className = 'certificate-preview';
-    previewLink.href = certificate.file;
-    previewLink.target = '_blank';
-    previewLink.rel = 'noopener noreferrer';
-    previewLink.setAttribute('aria-label', `${certificate.fileType === 'link' ? 'Open online' : 'View'} certificate: ${certificate.title}`);
-    if (certificate.fileType === 'link') {
-      previewLink.classList.add('certificate-online-link');
-      const linkLabel = document.createElement('span');
-      linkLabel.textContent = 'View online certificate ↗';
-      previewLink.append(linkLabel);
-    } else if (certificate.fileType === 'pdf') {
+    const openButton = document.createElement('button');
+    openButton.className = 'certificate-card-open';
+    openButton.type = 'button';
+    const preview = document.createElement('span');
+    preview.className = 'certificate-card-preview';
+    if (certificate.fileType === 'pdf') {
       const pdf = document.createElement('iframe');
       pdf.src = certificate.file;
-      pdf.title = certificate.title;
+      pdf.title = '';
       pdf.loading = 'lazy';
       pdf.tabIndex = -1;
       pdf.setAttribute('aria-hidden', 'true');
-      previewLink.append(pdf);
+      preview.append(pdf);
+    } else if (certificate.fileType === 'link') {
+      preview.classList.add('certificate-card-online');
+      preview.textContent = 'Online certificate ↗';
     } else {
       const image = document.createElement('img');
       image.src = certificate.file;
-      image.alt = certificate.title;
+      image.alt = '';
       image.loading = 'lazy';
-      previewLink.append(image);
+      preview.append(image);
     }
-    const details = document.createElement('div');
-    details.className = 'certificate-details';
     const title = document.createElement('h2');
     title.textContent = certificate.title;
-    const description = document.createElement('p');
-    description.textContent = certificate.description;
-    details.append(title, description);
-    if (certificate.fileType === 'link') {
-      const openLink = document.createElement('a');
-      openLink.className = 'certificate-download';
-      openLink.href = certificate.file;
-      openLink.target = '_blank';
-      openLink.rel = 'noopener noreferrer';
-      openLink.textContent = 'Open certificate ↗';
-      details.append(openLink);
-    } else {
-      const download = document.createElement('a');
-      download.className = 'certificate-download';
-      download.href = `${certificate.file}?download=1`;
-      download.setAttribute('download', '');
-      download.textContent = 'Download certificate ↗';
-      details.append(download);
-    }
-    card.append(previewLink, details);
+    const action = document.createElement('span');
+    action.className = 'certificate-card-action';
+    action.textContent = 'View certificate ↗';
+    openButton.setAttribute('aria-label', `View certificate and description: ${certificate.title}`);
+    openButton.append(preview, title, action);
+    openButton.addEventListener('click', () => openCertificate(certificate));
+    card.append(openButton);
     return card;
   }));
 }
