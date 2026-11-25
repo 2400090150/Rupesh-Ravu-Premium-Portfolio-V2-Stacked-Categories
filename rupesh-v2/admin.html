@@ -75,11 +75,12 @@
     </section>
     <section class="admin-panel" id="showcaseManager">
       <div class="panel-heading"><div><p class="kicker">02 / HERO CIRCLE</p><h2>Manage circle images</h2></div></div>
-      <p class="form-help">Choose up to 10 designs for the rotating hero circle. Select images in the order you want them to appear, then use the arrows to adjust the sequence. Edit or upload the artwork in the Design Library above.</p>
+      <p class="form-help">Choose up to 10 designs for the rotating hero circle, and turn the circle on or off on the homepage. Select images in the order you want them to appear, then use the arrows to adjust the sequence.</p>
+      <label class="visibility-control"><input id="showcaseEnabled" type="checkbox" checked> Show the circle on the homepage</label>
       <div id="showcaseCount" class="featured-count" aria-live="polite">Loading circle images…</div>
       <div id="showcaseDesignList" class="showcase-design-grid"></div>
       <div class="form-actions admin-list-actions">
-        <button id="saveShowcaseSelection" class="button" type="button" disabled>Save circle images</button>
+        <button id="saveShowcaseSelection" class="button" type="button" disabled>Save circle settings</button>
       </div>
     </section>
     <section class="admin-panel" id="certificateManager">
@@ -146,6 +147,6 @@
   </div>
 </main>
 <footer><span>© 2026 RUPESH RAVU</span><a href="/">BACK TO PORTFOLIO ↗</a></footer>
-<script src="/admin.js?v=2" defer></script>
+<script src="/admin.js?v=3" defer></script>
 </body>
 </html>

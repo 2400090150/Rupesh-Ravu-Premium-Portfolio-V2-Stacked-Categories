@@ -50,6 +50,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const defaultLogo = await fetch(`${baseUrl}/api/site-logo`, { redirect: 'manual' });
     assert.equal(defaultLogo.status, 302);
     assert.equal(defaultLogo.headers.get('location'), '/assets/ravu-fx-logo.png?v=4');
+    assert.equal(data.showcaseEnabled, true);
     assert.deepEqual(data.categories.map(category => category.slug), CATEGORY_DEFINITIONS.map(category => category.slug));
     assert.deepEqual(data.showcase.slice(0, CATEGORY_DEFINITIONS.length).map(design => design.category),
       CATEGORY_DEFINITIONS.map(category => category.slug));
@@ -366,6 +367,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     const initial = await requestJson('/api/admin/showcase');
     assert.equal(initial.response.status, 200, initial.data.error);
     assert.equal(initial.data.designIds.length, 10);
+    assert.equal(initial.data.enabled, true);
     assert.ok(initial.data.designs.length >= 11);
 
     const selectedIds = initial.data.designs.slice(0, 10).map(design => design.id).reverse();
@@ -406,6 +408,31 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       body: JSON.stringify({ designIds: initial.data.designIds })
     });
     assert.equal(restored.response.status, 200, restored.data.error);
+
+    const invalidVisibility = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: initial.data.designIds, enabled: 'false' })
+    });
+    assert.equal(invalidVisibility.response.status, 400);
+
+    const hidden = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: initial.data.designIds, enabled: false })
+    });
+    assert.equal(hidden.response.status, 200, hidden.data.error);
+    assert.equal(hidden.data.enabled, false);
+    assert.equal((await requestJson('/api/portfolio')).data.showcaseEnabled, false);
+
+    const shown = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: initial.data.designIds, enabled: true })
+    });
+    assert.equal(shown.response.status, 200, shown.data.error);
+    assert.equal(shown.data.enabled, true);
+    assert.equal((await requestJson('/api/admin/showcase')).data.enabled, true);
   });
 
   await t.test('allows admin design reads to recover after startup initialization fails', async t => {

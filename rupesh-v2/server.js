@@ -12,6 +12,7 @@ const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
 const MAX_CERTIFICATE_SIZE = 25 * 1024 * 1024;
 const STORAGE_BUCKET = 'portfolio-assets';
 const SHOWCASE_SETTING_KEY = 'projectShowcaseDesignIds';
+const SHOWCASE_ENABLED_SETTING_KEY = 'projectShowcaseEnabled';
 const MAX_SHOWCASE_DESIGNS = 10;
 const CATEGORY_DEFINITIONS = [
   { slug: 'logo-designs', title: 'LOGO DESIGNS', description: 'Identity marks, symbols and visual systems.' },
@@ -573,9 +574,10 @@ async function getDesigns(client, category) {
 }
 
 async function getShowcaseState(client) {
-  const [designRows, settings] = await Promise.all([
+  const [designRows, settings, enabledSettings] = await Promise.all([
     select(client, 'designs', '*', query => query.order('position').order('created_at').order('id')),
-    select(client, 'site_settings', 'value', query => query.eq('key', SHOWCASE_SETTING_KEY))
+    select(client, 'site_settings', 'value', query => query.eq('key', SHOWCASE_SETTING_KEY)),
+    select(client, 'site_settings', 'value', query => query.eq('key', SHOWCASE_ENABLED_SETTING_KEY))
   ]);
   let designIds;
   if (settings.length) {
@@ -612,7 +614,14 @@ async function getShowcaseState(client) {
   );
   const designs = designRows.map(row => designForApi(row));
   const availableIds = new Set(designs.map(design => design.id));
-  return { designs, designIds: designIds.filter(id => availableIds.has(id)) };
+  let enabled = true;
+  if (enabledSettings.length) {
+    if (!['true', 'false'].includes(enabledSettings[0].value)) {
+      throw createError(500, 'The saved hero circle visibility setting is invalid.');
+    }
+    enabled = enabledSettings[0].value === 'true';
+  }
+  return { designs, designIds: designIds.filter(id => availableIds.has(id)), enabled };
 }
 
 function requireText(value, field, maxLength) {
@@ -950,6 +959,7 @@ function createApp(options = {}) {
     res.json({
       categories: home, content: await getContent(client),
       showcase: showcaseState.designIds.map(id => showcaseDesigns.get(id)).filter(Boolean),
+      showcaseEnabled: showcaseState.enabled,
       customSections: (await getCustomSections(client)).filter(section => section.visible)
     });
   }));
@@ -1043,16 +1053,20 @@ function createApp(options = {}) {
     res.json(await getShowcaseState(client))));
   app.put('/api/admin/showcase', adminOnly, csrfOnly, route(async (req, res) => {
     const ids = req.body?.designIds;
+    const enabled = req.body?.enabled;
     if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SHOWCASE_DESIGNS ||
         ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) {
       throw createError(400, `Select between one and ${MAX_SHOWCASE_DESIGNS} different circle images.`);
     }
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      throw createError(400, 'Hero circle visibility must be true or false.');
+    }
     const designs = await select(client, 'designs', 'id', query => query.in('id', ids));
     if (designs.length !== ids.length) throw createError(400, 'All selected circle images must exist in the design library.');
-    fail(await client.from('site_settings').upsert({
-      key: SHOWCASE_SETTING_KEY, value: JSON.stringify(ids)
-    }, { onConflict: 'key' }));
-    res.json({ designIds: ids });
+    const settings = [{ key: SHOWCASE_SETTING_KEY, value: JSON.stringify(ids) }];
+    if (enabled !== undefined) settings.push({ key: SHOWCASE_ENABLED_SETTING_KEY, value: String(enabled) });
+    fail(await client.from('site_settings').upsert(settings, { onConflict: 'key' }));
+    res.json({ designIds: ids, enabled: enabled === undefined ? (await getShowcaseState(client)).enabled : enabled });
   }));
   app.get('/api/admin/certificates', adminOnly, route(async (req, res) =>
     res.json({ certificates: await orderedRecords(client, 'certificates') })));
@@ -1462,7 +1476,7 @@ function createVercelFallbackApp({ storageUnavailable = false } = {}) {
     res.set('Cache-Control', 'no-store').redirect(302, DEFAULT_CONTENT.headerLogoUrl);
   });
   app.get('/api/portfolio', (req, res) => res.json({
-    categories, content, customSections: [], ...storageConfiguration
+    categories, content, customSections: [], showcaseEnabled: true, ...storageConfiguration
   }));
   app.get('/api/tools', (req, res) => res.json({ tools: [] }));
   app.get('/api/certificates', (req, res) => res.json({ certificates: [] }));

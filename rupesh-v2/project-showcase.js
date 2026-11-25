@@ -4,6 +4,7 @@
   var section = document.getElementById('projectShowcase');
   var mount = document.getElementById('projectShowcaseMount');
   var pill = document.getElementById('projectShowcasePill');
+  var hero = section && section.closest('.hero');
   if (!section || !mount || !pill || typeof THREE === 'undefined') return;
 
   var LOGO_BACKGROUNDS = [
@@ -20,6 +21,7 @@
   ];
 
   var projects = [];
+  var showcaseEnabled = true;
   var FALLBACK = [
     { title: 'Northwind Rebrand', image: 'assets/gallery/Wave Front Media.png' },
     { title: 'Atlas Mobile App', image: 'assets/gallery/ORA (2).png' },
@@ -64,11 +66,19 @@
     });
   }
 
+  function updateShowcaseVisibility(enabled) {
+    showcaseEnabled = enabled !== false;
+    section.hidden = !showcaseEnabled;
+    if (hero) hero.classList.toggle('hero-with-showcase', showcaseEnabled);
+  }
+
   async function loadProjects() {
     try {
       var response = await fetch('/api/portfolio', { cache: 'no-store' });
       if (!response.ok) throw new Error('Portfolio request failed with HTTP ' + response.status);
-      projects = assignLogoBackgrounds(getProjectsFromPortfolio(await response.json()));
+      var portfolio = await response.json();
+      updateShowcaseVisibility(portfolio.showcaseEnabled);
+      projects = assignLogoBackgrounds(getProjectsFromPortfolio(portfolio));
     } catch (error) {
       console.warn('Could not load portfolio projects for the showcase.', error);
     }
@@ -223,13 +233,17 @@
       cards.push({ mesh: mesh, base: i * step, uv0: uv0 });
     }
 
+    var animationFrameActive = false;
     document.addEventListener('portfolio:updated', function (event) {
-      var nextProjects = getProjectsFromPortfolio(event.detail || {});
+      var portfolio = event.detail || {};
+      updateShowcaseVisibility(portfolio.showcaseEnabled);
+      var nextProjects = getProjectsFromPortfolio(portfolio);
       if (!nextProjects.length) return;
       projects = assignLogoBackgrounds(nextProjects);
       textures.forEach(function (texture, index) {
         setTextureProject(texture, projects[index % projects.length], index);
       });
+      startAnimation();
     });
 
     var twist = 34 * Math.PI / 180;
@@ -423,6 +437,10 @@
     apply(0, true);
 
     function loop(time) {
+      if (!showcaseEnabled) {
+        animationFrameActive = false;
+        return;
+      }
       requestAnimationFrame(loop);
       if (!dragging) updateHover();
       dragRotation += (targetDragRotation - dragRotation) * .24;
@@ -431,7 +449,14 @@
       tiltOffset += (targetTiltOffset - tiltOffset) * .18;
       apply(time, false);
     }
-    requestAnimationFrame(loop);
+
+    function startAnimation() {
+      if (!showcaseEnabled || animationFrameActive) return;
+      animationFrameActive = true;
+      requestAnimationFrame(loop);
+    }
+
+    startAnimation();
   }
 
   start();

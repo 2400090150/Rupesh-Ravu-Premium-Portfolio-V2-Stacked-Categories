@@ -24,6 +24,7 @@ test('read-only Vercel fallback serves all original portfolio categories, images
   assert.equal(response.status, 200);
   const portfolio = await response.json();
   assert.equal(portfolio.storageConfigured, false);
+  assert.equal(portfolio.showcaseEnabled, true);
   assert.deepEqual(portfolio.categories.map(category => category.marqueeText), [
     'LOGOPHOLIO', 'PACKAGING', 'BRANDING', 'TYPOPHOLIO'
   ]);

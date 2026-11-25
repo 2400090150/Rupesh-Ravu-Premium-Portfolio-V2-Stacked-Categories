@@ -12,6 +12,7 @@ const saveDesignOrderButton = document.getElementById('saveDesignOrder');
 const showcaseDesignList = document.getElementById('showcaseDesignList');
 const showcaseCount = document.getElementById('showcaseCount');
 const saveShowcaseButton = document.getElementById('saveShowcaseSelection');
+const showcaseEnabledInput = document.getElementById('showcaseEnabled');
 const certificateForm = document.getElementById('certificateForm');
 const certificateList = document.getElementById('certificateList');
 const saveCertificateOrderButton = document.getElementById('saveCertificateOrder');
@@ -41,6 +42,8 @@ let savedDesignCategory = '';
 let showcaseDesigns = [];
 let selectedShowcaseIds = [];
 let savedShowcaseIds = [];
+let selectedShowcaseEnabled = true;
+let savedShowcaseEnabled = true;
 let savedCertificateOrder = [];
 let savedTools = [];
 let customSections = [];
@@ -334,7 +337,8 @@ function updateDesignSaveButtons() {
 
 function updateShowcaseSaveButton() {
   const unchanged = selectedShowcaseIds.length === savedShowcaseIds.length &&
-    selectedShowcaseIds.every((id, index) => id === savedShowcaseIds[index]);
+    selectedShowcaseIds.every((id, index) => id === savedShowcaseIds[index]) &&
+    selectedShowcaseEnabled === savedShowcaseEnabled;
   saveShowcaseButton.disabled = unchanged;
 }
 
@@ -410,6 +414,9 @@ async function loadShowcase() {
   showcaseDesigns = result.designs;
   selectedShowcaseIds = result.designIds.slice();
   savedShowcaseIds = result.designIds.slice();
+  selectedShowcaseEnabled = result.enabled !== false;
+  savedShowcaseEnabled = selectedShowcaseEnabled;
+  showcaseEnabledInput.checked = selectedShowcaseEnabled;
   renderShowcaseDesigns();
 }
 
@@ -427,12 +434,13 @@ async function saveShowcaseSelection() {
     await request('/api/admin/showcase', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ designIds: selectedShowcaseIds })
+      body: JSON.stringify({ designIds: selectedShowcaseIds, enabled: selectedShowcaseEnabled })
     });
     savedShowcaseIds = selectedShowcaseIds.slice();
+    savedShowcaseEnabled = selectedShowcaseEnabled;
     notifyPortfolioUpdated();
     updateShowcaseSaveButton();
-    showStatus('Hero circle images updated.');
+    showStatus('Hero circle settings updated.');
   } catch (error) {
     updateShowcaseSaveButton();
     showStatus(error.message, true);
@@ -1014,6 +1022,10 @@ document.getElementById('cancelEdit').addEventListener('click', resetDesignForm)
 saveFeaturedButton.addEventListener('click', saveFeaturedSelection);
 saveDesignOrderButton.addEventListener('click', saveDesignOrder);
 saveShowcaseButton.addEventListener('click', saveShowcaseSelection);
+showcaseEnabledInput.addEventListener('change', () => {
+  selectedShowcaseEnabled = showcaseEnabledInput.checked;
+  updateShowcaseSaveButton();
+});
 libraryCategory.addEventListener('change', () => {
   if (hasUnsavedCategoryChanges() && !window.confirm('Discard unsaved changes for this category?')) {
     libraryCategory.value = savedDesignCategory;
