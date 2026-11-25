@@ -44,6 +44,7 @@ let selectedShowcaseIds = [];
 let savedShowcaseIds = [];
 let selectedShowcaseEnabled = true;
 let savedShowcaseEnabled = true;
+let showcaseVisibilitySaving = false;
 let savedCertificateOrder = [];
 let savedTools = [];
 let customSections = [];
@@ -339,7 +340,7 @@ function updateShowcaseSaveButton() {
   const unchanged = selectedShowcaseIds.length === savedShowcaseIds.length &&
     selectedShowcaseIds.every((id, index) => id === savedShowcaseIds[index]) &&
     selectedShowcaseEnabled === savedShowcaseEnabled;
-  saveShowcaseButton.disabled = unchanged;
+  saveShowcaseButton.disabled = unchanged || showcaseVisibilitySaving;
 }
 
 function renderShowcaseDesigns() {
@@ -440,10 +441,37 @@ async function saveShowcaseSelection() {
     savedShowcaseEnabled = selectedShowcaseEnabled;
     notifyPortfolioUpdated();
     updateShowcaseSaveButton();
-    showStatus('Hero circle settings updated.');
+    showStatus('Hero circle images updated.');
   } catch (error) {
     updateShowcaseSaveButton();
     showStatus(error.message, true);
+  }
+}
+
+async function saveShowcaseVisibility() {
+  selectedShowcaseEnabled = showcaseEnabledInput.checked;
+  showcaseVisibilitySaving = true;
+  showcaseEnabledInput.disabled = true;
+  updateShowcaseSaveButton();
+  try {
+    const result = await request('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: selectedShowcaseEnabled })
+    });
+    selectedShowcaseEnabled = result.enabled;
+    savedShowcaseEnabled = result.enabled;
+    showcaseEnabledInput.checked = result.enabled;
+    notifyPortfolioUpdated();
+    showStatus(result.enabled ? 'Hero circle enabled on the homepage.' : 'Hero circle hidden on the homepage.');
+  } catch (error) {
+    selectedShowcaseEnabled = savedShowcaseEnabled;
+    showcaseEnabledInput.checked = savedShowcaseEnabled;
+    showStatus(error.message, true);
+  } finally {
+    showcaseVisibilitySaving = false;
+    showcaseEnabledInput.disabled = false;
+    updateShowcaseSaveButton();
   }
 }
 
@@ -1023,8 +1051,7 @@ saveFeaturedButton.addEventListener('click', saveFeaturedSelection);
 saveDesignOrderButton.addEventListener('click', saveDesignOrder);
 saveShowcaseButton.addEventListener('click', saveShowcaseSelection);
 showcaseEnabledInput.addEventListener('change', () => {
-  selectedShowcaseEnabled = showcaseEnabledInput.checked;
-  updateShowcaseSaveButton();
+  saveShowcaseVisibility();
 });
 libraryCategory.addEventListener('change', () => {
   if (hasUnsavedCategoryChanges() && !window.confirm('Discard unsaved changes for this category?')) {

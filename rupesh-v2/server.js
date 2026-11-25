@@ -1052,21 +1052,29 @@ function createApp(options = {}) {
   app.get('/api/admin/showcase', adminOnly, route(async (req, res) =>
     res.json(await getShowcaseState(client))));
   app.put('/api/admin/showcase', adminOnly, csrfOnly, route(async (req, res) => {
+    const hasDesignIds = Object.hasOwn(req.body || {}, 'designIds');
     const ids = req.body?.designIds;
     const enabled = req.body?.enabled;
-    if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SHOWCASE_DESIGNS ||
-        ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) {
+    if (!hasDesignIds && enabled === undefined) {
+      throw createError(400, 'Provide circle image selections or a visibility setting.');
+    }
+    if (hasDesignIds && (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SHOWCASE_DESIGNS ||
+        ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length)) {
       throw createError(400, `Select between one and ${MAX_SHOWCASE_DESIGNS} different circle images.`);
     }
     if (enabled !== undefined && typeof enabled !== 'boolean') {
       throw createError(400, 'Hero circle visibility must be true or false.');
     }
-    const designs = await select(client, 'designs', 'id', query => query.in('id', ids));
-    if (designs.length !== ids.length) throw createError(400, 'All selected circle images must exist in the design library.');
-    const settings = [{ key: SHOWCASE_SETTING_KEY, value: JSON.stringify(ids) }];
+    const settings = [];
+    if (hasDesignIds) {
+      const designs = await select(client, 'designs', 'id', query => query.in('id', ids));
+      if (designs.length !== ids.length) throw createError(400, 'All selected circle images must exist in the design library.');
+      settings.push({ key: SHOWCASE_SETTING_KEY, value: JSON.stringify(ids) });
+    }
     if (enabled !== undefined) settings.push({ key: SHOWCASE_ENABLED_SETTING_KEY, value: String(enabled) });
     fail(await client.from('site_settings').upsert(settings, { onConflict: 'key' }));
-    res.json({ designIds: ids, enabled: enabled === undefined ? (await getShowcaseState(client)).enabled : enabled });
+    const showcaseState = await getShowcaseState(client);
+    res.json({ designIds: showcaseState.designIds, enabled: showcaseState.enabled });
   }));
   app.get('/api/admin/certificates', adminOnly, route(async (req, res) =>
     res.json({ certificates: await orderedRecords(client, 'certificates') })));
