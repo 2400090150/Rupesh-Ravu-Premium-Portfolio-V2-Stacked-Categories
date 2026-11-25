@@ -138,6 +138,7 @@ async function loadPortfolio() {
     section.querySelector('.category-no').textContent = `${String(categoryIndex + 1).padStart(2, '0')}`;
   });
   renderCustomSections(customSections);
+  document.dispatchEvent(new CustomEvent('portfolio:updated', { detail: portfolio }));
 }
 
 function renderCustomSections(sections) {

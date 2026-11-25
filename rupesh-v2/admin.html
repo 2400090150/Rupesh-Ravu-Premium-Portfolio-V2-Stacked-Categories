@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Design Management — Ravu.FX</title>
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/app.css?v=21">
 </head>
 <body class="admin-page">
 <header><a class="logo" href="/" aria-label="RAVU.FX home"><img src="/api/site-logo" alt="RAVU.FX"></a><nav><a href="/">View portfolio ↗</a></nav></header>
@@ -73,8 +73,17 @@
       </div>
       <div id="designList" class="design-list"></div>
     </section>
+    <section class="admin-panel" id="showcaseManager">
+      <div class="panel-heading"><div><p class="kicker">02 / HERO CIRCLE</p><h2>Manage circle images</h2></div></div>
+      <p class="form-help">Choose up to 10 designs for the rotating hero circle. Select images in the order you want them to appear, then use the arrows to adjust the sequence. Edit or upload the artwork in the Design Library above.</p>
+      <div id="showcaseCount" class="featured-count" aria-live="polite">Loading circle images…</div>
+      <div id="showcaseDesignList" class="showcase-design-grid"></div>
+      <div class="form-actions admin-list-actions">
+        <button id="saveShowcaseSelection" class="button" type="button" disabled>Save circle images</button>
+      </div>
+    </section>
     <section class="admin-panel" id="certificateManager">
-      <div class="panel-heading"><div><p class="kicker">02 / CERTIFICATE ARCHIVE</p><h2>Manage certificates</h2></div></div>
+      <div class="panel-heading"><div><p class="kicker">03 / CERTIFICATE ARCHIVE</p><h2>Manage certificates</h2></div></div>
       <p class="form-help">Upload a PDF, PNG, or JPG, or add a secure HTTPS link to an online certificate.</p>
       <form id="certificateForm" class="admin-form">
         <input type="hidden" name="editingId">
@@ -89,7 +98,7 @@
       <div id="certificateList" class="asset-list"></div>
     </section>
     <section class="admin-panel" id="toolManager">
-      <div class="panel-heading"><div><p class="kicker">03 / SKILLS &amp; SOFTWARE</p><h2>Manage tool logos</h2></div></div>
+      <div class="panel-heading"><div><p class="kicker">04 / SKILLS &amp; SOFTWARE</p><h2>Manage tool logos</h2></div></div>
       <p class="form-help">Upload actual software or technology logos as PNG, JPG, WebP, or safe self-contained SVG files.</p>
       <form id="toolForm" class="admin-form">
         <input type="hidden" name="editingId">
@@ -103,7 +112,7 @@
       <div id="toolList" class="asset-list"></div>
     </section>
     <section class="admin-panel">
-      <div class="panel-heading"><div><p class="kicker">04 / BRANDING</p><h2>Header logo</h2></div></div>
+      <div class="panel-heading"><div><p class="kicker">05 / BRANDING</p><h2>Header logo</h2></div></div>
       <p class="form-help">Upload a PNG, JPG, or WebP image to replace the logo across the website.</p>
       <form id="siteLogoForm" class="admin-form">
         <label class="wide-field">Logo image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label>
@@ -112,7 +121,7 @@
       </form>
     </section>
     <section class="admin-panel">
-      <div class="panel-heading"><div><p class="kicker">04 / WEBSITE CONTENT</p><h2>Homepage &amp; contact</h2></div></div>
+      <div class="panel-heading"><div><p class="kicker">06 / WEBSITE CONTENT</p><h2>Homepage &amp; contact</h2></div></div>
       <form id="contentForm" class="admin-form content-form">
         <label>Homepage headline<textarea name="heroTitle" rows="3" maxlength="120" required></textarea></label>
         <label>Homepage introduction<textarea name="heroLead" rows="3" maxlength="500" required></textarea></label>
@@ -137,6 +146,6 @@
   </div>
 </main>
 <footer><span>© 2026 RUPESH RAVU</span><a href="/">BACK TO PORTFOLIO ↗</a></footer>
-<script src="/admin.js" defer></script>
+<script src="/admin.js?v=2" defer></script>
 </body>
 </html>

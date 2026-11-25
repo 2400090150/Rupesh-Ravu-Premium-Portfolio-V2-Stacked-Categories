@@ -12,6 +12,8 @@ The portfolio is a Node.js application backed by SQLite. Its four fixed design c
 
 Sign in at `/admin` using the admin email and password. The initial account is configured with the email you provide during first-time setup.
 
+Use the **Hero Circle** panel to choose and order up to 10 designs for the rotating homepage showcase. Upload or replace their artwork in the Design Library; the circle selection is saved separately from the category homepage selections.
+
 The server listens on `127.0.0.1` by default. To expose it on a server interface, set `HOST=0.0.0.0` and `PORT` as appropriate.
 
 ## Design management

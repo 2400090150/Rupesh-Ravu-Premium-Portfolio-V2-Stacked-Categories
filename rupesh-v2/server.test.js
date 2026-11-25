@@ -51,6 +51,8 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(defaultLogo.status, 302);
     assert.equal(defaultLogo.headers.get('location'), '/assets/ravu-fx-logo.png?v=4');
     assert.deepEqual(data.categories.map(category => category.slug), CATEGORY_DEFINITIONS.map(category => category.slug));
+    assert.deepEqual(data.showcase.slice(0, CATEGORY_DEFINITIONS.length).map(design => design.category),
+      CATEGORY_DEFINITIONS.map(category => category.slug));
     for (const category of data.categories) {
       assert.equal(category.designs.length, 4, `${category.slug} should have exactly four featured designs`);
       const archive = await requestJson(`/api/categories/${category.slug}/designs`);
@@ -326,6 +328,7 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
     assert.equal(malformedCookie.response.status, 200);
     assert.equal(malformedCookie.data.authenticated, false);
     assert.equal((await requestJson('/api/admin/designs?category=logo-designs')).response.status, 401);
+    assert.equal((await requestJson('/api/admin/showcase')).response.status, 401);
     const rejected = await requestJson('/api/admin/setup', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -357,6 +360,52 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
       body: JSON.stringify({ email: 'RAVU.FX@gmail.com', password: 'a-strong-password-123' })
     });
     assert.equal(validLogin.response.status, 200);
+  });
+
+  await t.test('allows admins to select and order hero circle images', async () => {
+    const initial = await requestJson('/api/admin/showcase');
+    assert.equal(initial.response.status, 200, initial.data.error);
+    assert.equal(initial.data.designIds.length, 10);
+    assert.ok(initial.data.designs.length >= 11);
+
+    const selectedIds = initial.data.designs.slice(0, 10).map(design => design.id).reverse();
+    const saved = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: selectedIds })
+    });
+    assert.equal(saved.response.status, 200, saved.data.error);
+    assert.deepEqual(saved.data.designIds, selectedIds);
+
+    const portfolio = await requestJson('/api/portfolio');
+    assert.deepEqual(portfolio.data.showcase.map(design => design.id), selectedIds);
+    assert.ok(portfolio.data.showcase.every(design => design.image && design.category));
+
+    const emptySelection = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: [] })
+    });
+    assert.equal(emptySelection.response.status, 400);
+    const tooMany = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: [...selectedIds, initial.data.designs[10].id] })
+    });
+    assert.equal(tooMany.response.status, 400);
+    const unknownDesign = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: ['not-a-design'] })
+    });
+    assert.equal(unknownDesign.response.status, 400);
+
+    const restored = await requestJson('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: initial.data.designIds })
+    });
+    assert.equal(restored.response.status, 200, restored.data.error);
   });
 
   await t.test('allows admin design reads to recover after startup initialization fails', async t => {
@@ -527,12 +576,18 @@ test('portfolio categories, admin CRUD, featured selections, and persistent uplo
   });
 
   await t.test('category archives display every category design without subsection grouping', async () => {
+    const homepage = await fetch(`${baseUrl}/`);
+    assert.equal(homepage.status, 200);
+    const homepageHtml = await homepage.text();
     for (const category of CATEGORY_DEFINITIONS) {
       const page = await fetch(`${baseUrl}/${category.slug}`);
       assert.equal(page.status, 200);
       const html = await page.text();
       assert.match(html, /id="categoryGallery"/);
+      assert.match(html, /id="categoryHeading"/);
+      assert.doesNotMatch(html, /categoryShowcase|category-showcase/);
       assert.doesNotMatch(html, /categorySections|internalSection/i);
+      assert.ok(homepageHtml.includes(`href="/${category.slug}#categoryHeading"`));
     }
     const categoryPage = await requestJson('/api/categories/typography/designs');
     assert.equal(categoryPage.response.status, 200);

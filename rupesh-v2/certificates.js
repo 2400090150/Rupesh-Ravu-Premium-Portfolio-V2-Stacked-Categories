@@ -21,23 +21,10 @@ function openCertificate(certificate) {
     onlineLink.textContent = 'Open certificate online ↗';
     certificateDialogActions.append(onlineLink);
   } else {
-    if (certificate.fileType === 'pdf') {
-      const pdf = document.createElement('iframe');
-      pdf.src = certificate.file;
-      pdf.title = certificate.title;
-      certificateDialogDocument.append(pdf);
-    } else {
-      const image = document.createElement('img');
-      image.src = certificate.file;
-      image.alt = certificate.title;
-      certificateDialogDocument.append(image);
-    }
-
-    const download = document.createElement('a');
-    download.href = `${certificate.file}?download=1`;
-    download.setAttribute('download', '');
-    download.textContent = 'Download certificate ↗';
-    certificateDialogActions.append(download);
+    const image = document.createElement('img');
+    image.src = certificate.file;
+    image.alt = certificate.title;
+    certificateDialogDocument.append(image);
   }
   certificateDialog.showModal();
 }
@@ -65,19 +52,30 @@ async function loadCertificates() {
   gallery.replaceChildren(...certificates.map(certificate => {
     const card = document.createElement('article');
     card.className = 'certificate-card';
-    const openButton = document.createElement('button');
+    const openButton = document.createElement(certificate.fileType === 'pdf' ? 'a' : 'button');
     openButton.className = 'certificate-card-open';
-    openButton.type = 'button';
+    if (certificate.fileType === 'pdf') {
+      openButton.href = certificate.file;
+    } else {
+      openButton.type = 'button';
+    }
     const preview = document.createElement('span');
     preview.className = 'certificate-card-preview';
     if (certificate.fileType === 'pdf') {
+      preview.classList.add('certificate-card-pdf');
       const pdf = document.createElement('iframe');
       pdf.src = certificate.file;
-      pdf.title = '';
+      pdf.title = `Preview of ${certificate.title}`;
       pdf.loading = 'lazy';
       pdf.tabIndex = -1;
       pdf.setAttribute('aria-hidden', 'true');
-      preview.append(pdf);
+      const label = document.createElement('span');
+      label.className = 'certificate-card-pdf-label';
+      label.textContent = 'PDF';
+      const hint = document.createElement('span');
+      hint.className = 'certificate-card-pdf-hint';
+      hint.textContent = 'Tap to view';
+      preview.append(pdf, label, hint);
     } else if (certificate.fileType === 'link') {
       preview.classList.add('certificate-card-online');
       preview.textContent = 'Online certificate ↗';
@@ -93,9 +91,11 @@ async function loadCertificates() {
     const action = document.createElement('span');
     action.className = 'certificate-card-action';
     action.textContent = 'View certificate ↗';
-    openButton.setAttribute('aria-label', `View certificate and description: ${certificate.title}`);
+    openButton.setAttribute('aria-label', `View certificate: ${certificate.title}`);
     openButton.append(preview, title, action);
-    openButton.addEventListener('click', () => openCertificate(certificate));
+    if (certificate.fileType !== 'pdf') {
+      openButton.addEventListener('click', () => openCertificate(certificate));
+    }
     card.append(openButton);
     return card;
   }));

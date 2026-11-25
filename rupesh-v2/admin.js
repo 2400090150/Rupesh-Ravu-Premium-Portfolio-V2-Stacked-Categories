@@ -9,6 +9,9 @@ const designList = document.getElementById('designList');
 const featuredCount = document.getElementById('featuredCount');
 const saveFeaturedButton = document.getElementById('saveFeaturedSelection');
 const saveDesignOrderButton = document.getElementById('saveDesignOrder');
+const showcaseDesignList = document.getElementById('showcaseDesignList');
+const showcaseCount = document.getElementById('showcaseCount');
+const saveShowcaseButton = document.getElementById('saveShowcaseSelection');
 const certificateForm = document.getElementById('certificateForm');
 const certificateList = document.getElementById('certificateList');
 const saveCertificateOrderButton = document.getElementById('saveCertificateOrder');
@@ -35,6 +38,9 @@ let currentTools = [];
 let savedDesignOrder = [];
 let savedFeaturedIds = [];
 let savedDesignCategory = '';
+let showcaseDesigns = [];
+let selectedShowcaseIds = [];
+let savedShowcaseIds = [];
 let savedCertificateOrder = [];
 let savedTools = [];
 let customSections = [];
@@ -179,7 +185,7 @@ async function loadDashboard() {
   addSelectOptions(libraryCategory);
   updateLogoBackgroundControls();
   fillContentForm(contentResult.content, categories, customSections);
-  await Promise.all([loadDesigns(), loadCertificates(), loadTools()]);
+  await Promise.all([loadDesigns(), loadShowcase(), loadCertificates(), loadTools()]);
 }
 
 function fillContentForm(content, sectionData, customSectionData) {
@@ -326,6 +332,113 @@ function updateDesignSaveButtons() {
     selectedIds.every((id, index) => id === savedFeaturedIds[index]);
 }
 
+function updateShowcaseSaveButton() {
+  const unchanged = selectedShowcaseIds.length === savedShowcaseIds.length &&
+    selectedShowcaseIds.every((id, index) => id === savedShowcaseIds[index]);
+  saveShowcaseButton.disabled = unchanged;
+}
+
+function renderShowcaseDesigns() {
+  showcaseDesignList.replaceChildren();
+  showcaseDesigns.forEach(design => {
+    const card = document.createElement('article');
+    card.className = 'showcase-design-card';
+    const image = document.createElement('img');
+    image.src = design.image;
+    image.alt = design.title;
+    image.loading = 'lazy';
+    if (design.category === 'logo-designs') {
+      image.style.backgroundColor = design.displayBackgroundColor || '#ffffff';
+    }
+
+    const body = document.createElement('div');
+    body.className = 'showcase-design-card-body';
+    const title = document.createElement('h3');
+    title.textContent = design.title;
+    const category = document.createElement('p');
+    category.className = 'showcase-category';
+    category.textContent = categories.find(item => item.slug === design.category)?.title || design.category;
+
+    const checkboxLabel = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selectedShowcaseIds.includes(design.id);
+    checkbox.setAttribute('aria-label', `Show ${design.title} in the hero circle`);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        if (selectedShowcaseIds.length >= 10) {
+          checkbox.checked = false;
+          showStatus('Choose up to 10 images for the hero circle.', true);
+          return;
+        }
+        selectedShowcaseIds.push(design.id);
+      } else {
+        selectedShowcaseIds = selectedShowcaseIds.filter(id => id !== design.id);
+      }
+      renderShowcaseDesigns();
+    });
+    checkboxLabel.append(checkbox, document.createTextNode(' Show in circle'));
+
+    const selectedIndex = selectedShowcaseIds.indexOf(design.id);
+    const actions = document.createElement('div');
+    actions.className = 'showcase-design-actions';
+    const moveUp = document.createElement('button');
+    moveUp.type = 'button';
+    moveUp.textContent = '↑';
+    moveUp.title = `Move ${design.title} earlier`;
+    moveUp.setAttribute('aria-label', `Move ${design.title} earlier in the circle`);
+    moveUp.disabled = selectedIndex <= 0;
+    moveUp.addEventListener('click', () => moveShowcaseDesign(selectedIndex, -1));
+    const moveDown = document.createElement('button');
+    moveDown.type = 'button';
+    moveDown.textContent = '↓';
+    moveDown.title = `Move ${design.title} later`;
+    moveDown.setAttribute('aria-label', `Move ${design.title} later in the circle`);
+    moveDown.disabled = selectedIndex < 0 || selectedIndex === selectedShowcaseIds.length - 1;
+    moveDown.addEventListener('click', () => moveShowcaseDesign(selectedIndex, 1));
+    actions.append(moveUp, moveDown);
+    body.append(title, category, checkboxLabel, actions);
+    card.append(image, body);
+    showcaseDesignList.append(card);
+  });
+  showcaseCount.textContent = `${selectedShowcaseIds.length} of 10 circle images selected`;
+  updateShowcaseSaveButton();
+}
+
+async function loadShowcase() {
+  const result = await request('/api/admin/showcase');
+  showcaseDesigns = result.designs;
+  selectedShowcaseIds = result.designIds.slice();
+  savedShowcaseIds = result.designIds.slice();
+  renderShowcaseDesigns();
+}
+
+function moveShowcaseDesign(index, direction) {
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= selectedShowcaseIds.length) return;
+  [selectedShowcaseIds[index], selectedShowcaseIds[target]] =
+    [selectedShowcaseIds[target], selectedShowcaseIds[index]];
+  renderShowcaseDesigns();
+}
+
+async function saveShowcaseSelection() {
+  saveShowcaseButton.disabled = true;
+  try {
+    await request('/api/admin/showcase', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ designIds: selectedShowcaseIds })
+    });
+    savedShowcaseIds = selectedShowcaseIds.slice();
+    notifyPortfolioUpdated();
+    updateShowcaseSaveButton();
+    showStatus('Hero circle images updated.');
+  } catch (error) {
+    updateShowcaseSaveButton();
+    showStatus(error.message, true);
+  }
+}
+
 async function saveFeaturedSelection() {
   const checkboxes = [...designList.querySelectorAll('input[name="featured"]')];
   const designIds = checkboxes.filter(input => input.checked).map(input => input.value);
@@ -346,6 +459,7 @@ async function saveFeaturedSelection() {
       body: JSON.stringify({ category: libraryCategory.value, designIds })
     });
     savedFeaturedIds = designIds;
+    if (saveShowcaseButton.disabled) await loadShowcase();
     notifyPortfolioUpdated();
     updateDesignSaveButtons();
     showStatus('Homepage selection updated.');
@@ -444,6 +558,7 @@ async function saveDesignOrder() {
       body: JSON.stringify({ category: libraryCategory.value, designIds })
     });
     savedDesignOrder = designIds;
+    if (saveShowcaseButton.disabled) await loadShowcase();
     notifyPortfolioUpdated();
     updateDesignSaveButtons();
     showStatus('Design order updated.');
@@ -560,12 +675,13 @@ designForm.elements.namedItem('image').addEventListener('change', event => {
 });
 
 async function deleteDesign(design) {
-  const pendingWarning = hasUnsavedCategoryChanges() ? ' Unsaved category changes will be discarded.' : '';
+  const pendingWarning = hasUnsavedCategoryChanges() || !saveShowcaseButton.disabled
+    ? ' Unsaved category or circle changes will be discarded.' : '';
   if (!window.confirm(`Delete "${design.title}"? This cannot be undone.${pendingWarning}`)) return;
   try {
     await request(`/api/admin/designs/${encodeURIComponent(design.id)}`, { method: 'DELETE' });
     notifyPortfolioUpdated();
-    await loadDesigns();
+    await Promise.all([loadDesigns(), loadShowcase()]);
     showStatus(`"${design.title}" was deleted.`);
   } catch (error) {
     showStatus(error.message, true);
@@ -872,8 +988,8 @@ function hasUnsavedCategoryChanges() {
 
 designForm.addEventListener('submit', async event => {
   event.preventDefault();
-  if (hasUnsavedCategoryChanges() &&
-      !window.confirm('Save this design and discard the unsaved category changes?')) return;
+  if ((hasUnsavedCategoryChanges() || !saveShowcaseButton.disabled) &&
+      !window.confirm('Save this design and discard unsaved category or circle changes?')) return;
   const editingId = designForm.elements.namedItem('editingId').value;
   const body = new FormData(designForm);
   body.delete('editingId');
@@ -887,7 +1003,7 @@ designForm.addEventListener('submit', async event => {
     const category = designCategory.value;
     resetDesignForm();
     libraryCategory.value = category;
-    await loadDesigns();
+    await Promise.all([loadDesigns(), loadShowcase()]);
     showStatus(editingId ? 'Design details updated.' : 'Design uploaded and added to the homepage.');
   } catch (error) {
     showStatus(error.message, true);
@@ -897,6 +1013,7 @@ designForm.addEventListener('submit', async event => {
 document.getElementById('cancelEdit').addEventListener('click', resetDesignForm);
 saveFeaturedButton.addEventListener('click', saveFeaturedSelection);
 saveDesignOrderButton.addEventListener('click', saveDesignOrder);
+saveShowcaseButton.addEventListener('click', saveShowcaseSelection);
 libraryCategory.addEventListener('change', () => {
   if (hasUnsavedCategoryChanges() && !window.confirm('Discard unsaved changes for this category?')) {
     libraryCategory.value = savedDesignCategory;

@@ -1,8 +1,10 @@
 const CATEGORY_SLUGS = ['logo-designs', 'product-design', 'marketing-branding', 'typography'];
 const currentCategory = window.location.pathname.replace(/^\/+|\/+$/g, '');
 const gallery = document.getElementById('categoryGallery');
+const categoryHeading = document.getElementById('categoryHeading');
 const statusMessage = document.getElementById('categoryStatus');
 const modal = document.getElementById('modal');
+let scrollToCategoryHeading = window.location.hash === '#categoryHeading';
 const portfolioUpdateChannel = 'BroadcastChannel' in window
   ? new BroadcastChannel('ravu-portfolio-updates')
   : null;
@@ -67,6 +69,17 @@ function openPreview(design, category, index) {
   document.getElementById('close').focus();
 }
 
+function scrollToHeading() {
+  const root = document.documentElement;
+  const previousBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = 'auto';
+  try {
+    categoryHeading.scrollIntoView({ block: 'start' });
+  } finally {
+    root.style.scrollBehavior = previousBehavior;
+  }
+}
+
 async function loadCategory() {
   if (!CATEGORY_SLUGS.includes(currentCategory)) throw new Error('This design category does not exist.');
   const response = await fetch(`/api/categories/${encodeURIComponent(currentCategory)}/designs`, { cache: 'no-store' });
@@ -79,6 +92,10 @@ async function loadCategory() {
   document.getElementById('categoryDescription').textContent = category.description;
   gallery.hidden = designs.length === 0;
   gallery.replaceChildren(...designs.map((design, index) => makeCard(design, category, index)));
+  if (scrollToCategoryHeading) {
+    scrollToCategoryHeading = false;
+    scrollToHeading();
+  }
 }
 
 portfolioUpdateChannel?.addEventListener('message', event => {

@@ -11,6 +11,8 @@ const SESSION_DURATION = 8 * 60 * 60;
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
 const MAX_CERTIFICATE_SIZE = 25 * 1024 * 1024;
 const STORAGE_BUCKET = 'portfolio-assets';
+const SHOWCASE_SETTING_KEY = 'projectShowcaseDesignIds';
+const MAX_SHOWCASE_DESIGNS = 10;
 const CATEGORY_DEFINITIONS = [
   { slug: 'logo-designs', title: 'LOGO DESIGNS', description: 'Identity marks, symbols and visual systems.' },
   { slug: 'product-design', title: 'FOOD & BAVERAGE', description: 'Product-led visuals, objects and presentation concepts.' },
@@ -570,6 +572,49 @@ async function getDesigns(client, category) {
   return designs.map(row => designForApi(row, featuredIds.has(row.id)));
 }
 
+async function getShowcaseState(client) {
+  const [designRows, settings] = await Promise.all([
+    select(client, 'designs', '*', query => query.order('position').order('created_at').order('id')),
+    select(client, 'site_settings', 'value', query => query.eq('key', SHOWCASE_SETTING_KEY))
+  ]);
+  let designIds;
+  if (settings.length) {
+    try {
+      designIds = JSON.parse(settings[0].value);
+    } catch {
+      throw createError(500, 'The saved circle image selection is invalid.');
+    }
+    if (!Array.isArray(designIds) || designIds.some(id => typeof id !== 'string')) {
+      throw createError(500, 'The saved circle image selection is invalid.');
+    }
+  } else {
+    const featuredByCategory = await Promise.all(CATEGORY_DEFINITIONS.map(category =>
+      select(client, 'featured_designs', 'design_id,position',
+        query => query.eq('category_slug', category.slug).order('position'))
+    ));
+    designIds = [];
+    for (let position = 0; designIds.length < MAX_SHOWCASE_DESIGNS; position++) {
+      let foundDesign = false;
+      for (const designs of featuredByCategory) {
+        if (designs[position] && designIds.length < MAX_SHOWCASE_DESIGNS) {
+          designIds.push(designs[position].design_id);
+          foundDesign = true;
+        }
+      }
+      if (!foundDesign) break;
+    }
+  }
+
+  const categoryOrder = new Map(CATEGORY_DEFINITIONS.map((category, index) => [category.slug, index]));
+  designRows.sort((a, b) =>
+    categoryOrder.get(a.category_slug) - categoryOrder.get(b.category_slug) ||
+    a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+  );
+  const designs = designRows.map(row => designForApi(row));
+  const availableIds = new Set(designs.map(design => design.id));
+  return { designs, designIds: designIds.filter(id => availableIds.has(id)) };
+}
+
 function requireText(value, field, maxLength) {
   if (typeof value !== 'string' || !value.trim()) throw createError(400, `${field} is required.`);
   const text = value.trim();
@@ -771,6 +816,7 @@ function createApp(options = {}) {
   const config = verifyConfig(options);
   const client = config.client;
   const app = express();
+  const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
   const loginAttempts = new Map();
   const setupTokenHash = config.setupToken ? crypto.createHash('sha256').update(config.setupToken).digest() : null;
   const storageFallback = options.storageFallback ||
@@ -778,6 +824,25 @@ function createApp(options = {}) {
   app.locals.database = config.database;
   app.locals.databaseClient = client;
   app.locals.storageError = null;
+  if (maintenanceMode) {
+    app.use((req, res, next) => {
+      if (req.path === '/admin' || req.path.startsWith('/api/admin/') || req.path === '/api/admin') {
+        return next();
+      }
+      if (req.path.startsWith('/api/')) {
+        res.setHeader('Retry-After', '3600');
+        return res.status(503).json({ error: 'The portfolio is temporarily under maintenance.' });
+      }
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        res.setHeader('Retry-After', '3600');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        if (req.method === 'HEAD') return res.sendStatus(503);
+        return res.status(503).sendFile(path.join(ROOT, 'maintenance.html'));
+      }
+      return res.status(503).send('The portfolio is temporarily under maintenance.');
+    });
+  }
   let initialization;
   const initializeStorage = () => {
     if (initialization) return initialization;
@@ -880,8 +945,11 @@ function createApp(options = {}) {
         };
       }) };
     }));
+    const showcaseState = await getShowcaseState(client);
+    const showcaseDesigns = new Map(showcaseState.designs.map(design => [design.id, design]));
     res.json({
       categories: home, content: await getContent(client),
+      showcase: showcaseState.designIds.map(id => showcaseDesigns.get(id)).filter(Boolean),
       customSections: (await getCustomSections(client)).filter(section => section.visible)
     });
   }));
@@ -970,6 +1038,21 @@ function createApp(options = {}) {
     const category = String(req.query.category || '');
     if (!validCategory(category)) throw createError(400, 'Choose one of the four design categories.');
     res.json({ designs: await getDesigns(client, category) });
+  }));
+  app.get('/api/admin/showcase', adminOnly, route(async (req, res) =>
+    res.json(await getShowcaseState(client))));
+  app.put('/api/admin/showcase', adminOnly, csrfOnly, route(async (req, res) => {
+    const ids = req.body?.designIds;
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SHOWCASE_DESIGNS ||
+        ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) {
+      throw createError(400, `Select between one and ${MAX_SHOWCASE_DESIGNS} different circle images.`);
+    }
+    const designs = await select(client, 'designs', 'id', query => query.in('id', ids));
+    if (designs.length !== ids.length) throw createError(400, 'All selected circle images must exist in the design library.');
+    fail(await client.from('site_settings').upsert({
+      key: SHOWCASE_SETTING_KEY, value: JSON.stringify(ids)
+    }, { onConflict: 'key' }));
+    res.json({ designIds: ids });
   }));
   app.get('/api/admin/certificates', adminOnly, route(async (req, res) =>
     res.json({ certificates: await orderedRecords(client, 'certificates') })));
